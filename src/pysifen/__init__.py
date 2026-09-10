@@ -50,7 +50,7 @@ from pysifen.security import (
 )
 from pysifen.validacion import validar_documento, validar_evento
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "Ambiente",

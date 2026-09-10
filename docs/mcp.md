@@ -18,9 +18,9 @@ natural. Y para este dominio es además lo prudente: los documentos tributarios
 traen datos de contribuyentes, y un servidor que no los retiene no tiene nada
 que filtrar.
 
-Lo único que se reutiliza es el esquema XSD compilado y el registro de
-prestadores, que son datos de la librería y no del usuario. Compilar el esquema
-lleva del orden de un segundo; hacerlo por pedido haría inviable un lote.
+Lo único que se reutiliza es el esquema XSD compilado y la Lista de Confianza,
+que son datos de la librería y no del usuario. Compilar el esquema lleva del
+orden de un segundo; hacerlo por pedido haría inviable un lote.
 
 ## Instalación
 
@@ -110,13 +110,16 @@ tributario en XML ocupa unos 10 KB; esto suele quedar en menos de 500 bytes:
   "verificacion": {
     "esquema": true,
     "firma": true,
-    "prestador": "DOCUMENTA S.A.",
+    "prestador": "Documenta SA",
+    "cadena_de_confianza": true,
     "certificado_vigente_al_firmar": true,
     "ruc_coincide_con_el_certificado": true,
     "cdc_coherente": true,
     "qr_coherente": true
   },
-  "limite_de_la_verificacion": "la cadena de confianza no se valida: ..."
+  "limite_de_la_verificacion": "no se consulta la lista de certificados
+  revocados, que requiere red. Todo lo demás está verificado, incluida la
+  cadena de confianza hasta la Autoridad Certificadora Raíz del Paraguay."
 }
 ```
 
@@ -126,21 +129,50 @@ mensaje: un modelo maneja mucho mejor un resultado que una traza de excepción.
 
 ## Qué significa `confiable`, exactamente
 
-!!! danger "No significa auténtico"
-    Significa que **todas las comprobaciones disponibles pasaron**. Todavía no
-    se valida la cadena de confianza: el prestador se identifica comparando el
-    nombre del emisor del certificado contra una lista, y ese nombre es texto
-    que cualquiera puede escribir en un certificado autofirmado.
+Significa **auténtico**: el documento lo emitió quien dice, y nadie lo tocó
+después. Para llegar ahí tienen que pasar todas estas, y cualquiera que no se
+pueda comprobar cuenta como que no pasó:
+
+| Comprobación | Qué prueba |
+|---|---|
+| Esquema | Que el documento tiene la estructura oficial |
+| Firma | Que **ni un carácter** cambió desde que se firmó |
+| Cadena de confianza | Que el certificado lo emitió de verdad un prestador cualificado habilitado, hasta la Autoridad Certificadora Raíz del Paraguay |
+| Vigencia a la firma | Que el certificado estaba vigente *cuando se firmó*, no hoy |
+| RUC | Que el documento no lo firmó otro contribuyente |
+| CDC y QR | Que el código de control y el QR corresponden al documento |
+
+La cadena se valida contra la [Lista de Confianza][tsl] que publica el
+Ministerio de Industria y Comercio, comprobando la firma de cada eslabón. Un
+certificado autofirmado que *dice* ser de DOCUMENTA se rechaza; uno que
+DOCUMENTA firmó de verdad se acepta. Ver
+[la decisión 0004](decisiones/0004-cadena-de-confianza.md).
+
+  [tsl]: https://www.acraiz.gov.py/tsl/tsl_Py.xml
+
+!!! warning "Lo único que queda afuera: la revocación"
+    No se consulta la lista de certificados revocados del prestador, porque es
+    la única comprobación que necesita salir a la red. Un certificado revocado
+    con cadena válida se informa hoy como confiable.
 
     Por eso cada respuesta incluye `limite_de_la_verificacion`, para que quien
-    la lea —persona o modelo— sepa qué no se comprobó.
+    la lea —persona o modelo— sepa exactamente qué no se comprobó.
 
-Lo que **sí** prueba algo, y mucho: la firma. Si alguien cambió un solo
-carácter del documento, la verificación falla. Eso está probado con un test que
-altera un dígito y comprueba que se detecta.
+## Por qué verificar si el SIFEN ya aprobó el documento
 
-La validación de la cadena está en la [hoja de ruta](hoja-de-ruta.md) como
-criterio de la 0.6.0.
+Es la objeción razonable, y cada vez más: desde que los sistemas de facturación
+consultan la aprobación antes de enviar, a un administrativo casi no le llega un
+documento que el SIFEN haya rechazado.
+
+Pero son dos cosas distintas. La aprobación dice que **el emisor declaró ese
+documento ante la DNIT**. La firma dice que **el archivo que tenés en la mano es
+ese documento y no otro**. Entre una cosa y la otra hay un correo, un reenvío,
+una carpeta compartida y, a veces, alguien con interés en cambiar un importe.
+
+Lo que esta verificación detecta no es el error del emisor —eso ya lo filtró el
+SIFEN— sino la alteración posterior y el documento fabricado: el XML que nunca
+existió del lado de la DNIT pero llega con aspecto de factura. Ninguna de las
+dos cosas la ve el ojo, y las dos las ve la firma.
 
 ## Uso desde Python
 

@@ -18,10 +18,10 @@ sin estado es el modelo natural. Y para este dominio es además lo seguro: los
 documentos tributarios traen datos de contribuyentes, y un servidor que no los
 retiene no tiene nada que filtrar.
 
-Lo único que se reutiliza entre llamadas es el esquema XSD compilado y el
-registro de prestadores, que son datos de la librería y no del usuario.
-Compilar el esquema lleva del orden de un segundo; hacerlo por pedido haría
-inviable procesar un lote.
+Lo único que se reutiliza entre llamadas es el esquema XSD compilado y la
+Lista de Confianza, que son datos de la librería y no del usuario. Compilar
+el esquema lleva del orden de un segundo; hacerlo por pedido haría inviable
+procesar un lote.
 
 Cómo se ejecuta
 ---------------
@@ -47,7 +47,7 @@ from pysifen.cdc import Cdc
 from pysifen.documento import grupos_disponibles
 from pysifen.exceptions import SifenError
 from pysifen.lectura import verificar_documento
-from pysifen.pki.psc import RegistroDePrestadores
+from pysifen.pki.cadena import lista_de_confianza
 from pysifen.validacion import esquema_de_documento
 
 __all__ = ["construir_servidor", "main"]
@@ -115,14 +115,15 @@ def construir_servidor() -> Any:
             "(SIFEN). Sirven para leer una factura recibida y verificar si es "
             "auténtica, y para consultar la estructura oficial del documento. "
             "Verificar no requiere certificado propio: el documento trae el "
-            "certificado de quien lo firmó."
+            "certificado de quien lo firmó, y la cadena se valida contra la "
+            "Lista de Confianza oficial del Ministerio de Industria y Comercio."
         ),
     )
 
     # Se preparan una vez y se reutilizan: son datos de la librería, no del
     # usuario, así que compartirlos no rompe el carácter stateless.
     esquema_de_documento()
-    prestadores = RegistroDePrestadores.desde_entry_points()
+    anclas = lista_de_confianza()
 
     @servidor.tool()
     def verificar_factura(
@@ -130,10 +131,12 @@ def construir_servidor() -> Any:
     ) -> dict[str, Any]:
         """Lee una factura electrónica y verifica si se puede confiar en ella.
 
-        Comprueba el esquema oficial, la firma digital, que el certificado sea
-        de un prestador cualificado y estuviera vigente al firmar, que el RUC
-        del documento sea el del certificado, y que el CDC y el QR sean
-        coherentes.
+        Comprueba el esquema oficial, la firma digital, que el certificado
+        encadene hasta la Autoridad Certificadora Raíz del Paraguay por un
+        prestador cualificado habilitado, que estuviera vigente al firmar, que
+        el RUC del documento sea el del certificado, y que el CDC y el QR sean
+        coherentes. Lo único que no comprueba es la revocación, que necesita
+        red.
 
         Devuelve una versión compacta del documento con el veredicto adelante.
         La clave 'confiable' es la que decide si el resto se puede usar.
@@ -147,7 +150,7 @@ def construir_servidor() -> Any:
         except SifenError as error:
             return _fallo(str(error))
 
-        resultado = verificar_documento(crudo, registro=prestadores)
+        resultado = verificar_documento(crudo, lista=anclas)
         return {"ok": True} | resultado.resumir()
 
     @servidor.tool()
@@ -172,7 +175,7 @@ def construir_servidor() -> Any:
             except SifenError as error:
                 informes.append({"ruta": ruta, "ok": False, "error": str(error)})
                 continue
-            resultado = verificar_documento(crudo, registro=prestadores)
+            resultado = verificar_documento(crudo, lista=anclas)
             informes.append({"ruta": ruta} | resultado.resumir())
 
         confiables = sum(1 for i in informes if i.get("confiable"))

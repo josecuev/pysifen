@@ -27,26 +27,17 @@ momento de la firma**, no hoy. Un certificado que venció el mes pasado no
 invalida los documentos que firmó cuando estaba vigente. El apartado 7.8 del
 Manual Técnico lo dice así.
 
-Qué queda fuera, y por qué importa
-----------------------------------
+Qué queda fuera
+---------------
 
-.. danger::
-   **La cadena de confianza todavía no se valida.** El prestador se identifica
-   comparando el nombre del emisor del certificado contra una lista, y ese
-   nombre es un texto que cualquiera puede escribir en un certificado
-   autofirmado. Sirve para clasificar, **no** para probar.
+La consulta de la lista de certificados revocados. Es la única comprobación que
+necesita salir a la red del prestador, así que va aparte y nunca por omisión:
+una llamada de red silenciosa dentro de lo que parece una función local es una
+sorpresa desagradable.
 
-   Mientras eso siga así, ``confiable`` significa "todas las comprobaciones
-   disponibles pasaron", no "este documento es auténtico". Lo que sí prueba
-   algo, y mucho, es la firma: si el contenido fue alterado, falla.
-
-   Validar la cadena de verdad exige los certificados raíz de los siete
-   prestadores y verificar la ruta hasta ellos. Está en la hoja de ruta como
-   criterio de la 0.6.0.
-
-También queda fuera la consulta de la lista de certificados revocados, que
-requiere salir a la red del prestador. La librería no lo hace por su cuenta:
-sería una llamada de red silenciosa dentro de lo que parece una función local.
+Un certificado revocado con cadena válida se reporta como confiable. Para el
+caso habitual —verificar una factura recibida— eso alcanza; para un uso donde
+la revocación importe, hay que consultarla aparte.
 """
 
 from __future__ import annotations
@@ -62,8 +53,13 @@ from lxml import etree
 
 from pysifen.cdc import Cdc
 from pysifen.enums import TipoDocumento
+from pysifen.pki.cadena import (
+    ListaDeConfianza,
+    ResultadoDeCadena,
+    lista_de_confianza,
+    validar_cadena,
+)
 from pysifen.pki.certificado import Certificado
-from pysifen.pki.psc import RegistroDePrestadores
 from pysifen.signing.verificacion import ResultadoDeFirma, verificar_firma
 from pysifen.validacion import validar_documento
 
@@ -102,6 +98,7 @@ class Verificacion:
     problemas_de_esquema: tuple[str, ...] = ()
 
     firma: ResultadoDeFirma | None = None
+    cadena: ResultadoDeCadena | None = None
     prestador: str | None = None
     certificado_vigente_a_la_firma: bool | None = None
     ruc_del_certificado: str | None = None
@@ -122,27 +119,35 @@ class Verificacion:
         return self.firma.tolerancias if self.firma else ()
 
     @property
+    def cadena_valida(self) -> bool:
+        """``True`` si el certificado encadena hasta una raíz reconocida."""
+        return self.cadena is not None and self.cadena.valida
+
+    @property
     def firma_valida(self) -> bool:
         """``True`` si la firma cierra: resumen y firma criptográfica."""
         return self.firma is not None and self.firma.valida
 
     @property
     def confiable(self) -> bool:
-        """``True`` si **todas** las comprobaciones disponibles salieron bien.
+        """``True`` si el documento es auténtico.
+
+        Exige que el esquema valide, que la firma cierre, que el certificado
+        **encadene hasta la Autoridad Certificadora Raíz del Paraguay** por un
+        prestador habilitado, que estuviera vigente al firmar, que el RUC del
+        documento sea el del certificado, y que el CDC y el QR sean coherentes.
 
         Es deliberadamente estricto: un ``None`` en cualquier comprobación
         significa que no se pudo verificar, y lo que no se pudo verificar no se
         da por bueno.
 
-        .. warning::
-           No significa "auténtico". La cadena de confianza todavía no se
-           valida: el prestador se identifica por el nombre del emisor, que es
-           texto que cualquiera puede escribir. Ver el encabezado del módulo.
+        Lo único que no cubre es la revocación del certificado, que necesita
+        red. Ver el encabezado del módulo.
         """
         return (
             self.esquema_valido
             and self.firma_valida
-            and self.prestador is not None
+            and self.cadena_valida
             and self.certificado_vigente_a_la_firma is True
             and self.ruc_coincide is True
             and self.cdc_coherente is True
@@ -176,6 +181,7 @@ class Verificacion:
                 "esquema": self.esquema_valido,
                 "firma": self.firma_valida,
                 "prestador": self.prestador,
+                "cadena_de_confianza": self.cadena_valida,
                 "certificado_vigente_al_firmar": self.certificado_vigente_a_la_firma,
                 "ruc_coincide_con_el_certificado": self.ruc_coincide,
                 "cdc_coherente": self.cdc_coherente,
@@ -183,9 +189,9 @@ class Verificacion:
             },
         }
         resumen["limite_de_la_verificacion"] = (
-            "la cadena de confianza no se valida: el prestador se identifica "
-            "por el nombre del emisor del certificado, que es falsificable. La "
-            "firma sí prueba que el contenido no fue alterado."
+            "no se consulta la lista de certificados revocados, que requiere "
+            "red. Todo lo demás está verificado, incluida la cadena de "
+            "confianza hasta la Autoridad Certificadora Raíz del Paraguay."
         )
         if self.tolerancias:
             resumen["tolerancias"] = list(self.tolerancias)
@@ -224,7 +230,7 @@ class Verificacion:
 def verificar_documento(
     xml: bytes | str | etree._Element,
     *,
-    registro: RegistroDePrestadores | None = None,
+    lista: ListaDeConfianza | None = None,
     validar_esquema: bool = True,
 ) -> Verificacion:
     """Lee un documento recibido y verifica todo lo que se pueda verificar.
@@ -232,8 +238,8 @@ def verificar_documento(
     Args:
         xml: el documento, en bytes, texto o ya interpretado. Se acepta tanto un
             ``rDE`` suelto como un ``rLoteDE`` con uno adentro.
-        registro: los prestadores contra los que identificar el certificado. Por
-            omisión, los declarados por *entry points*.
+        lista: las anclas de confianza contra las que validar la cadena. Por
+            omisión, la Lista de Confianza que trae la librería.
         validar_esquema: si comprobar el documento contra el XSD oficial. Se
             puede apagar al procesar lotes grandes donde ya se validó antes.
 
@@ -263,12 +269,8 @@ def verificar_documento(
     datos = _datos_del_documento(raiz)
     certificado = resultado_firma.certificado
 
-    prestador = _identificar_prestador(certificado, registro)
-    if certificado is not None and prestador is None:
-        observaciones.append(
-            "el certificado no corresponde a ningún prestador conocido; puede "
-            "ser de uno habilitado después de esta versión de la librería"
-        )
+    resultado_cadena = _validar_cadena(certificado, raiz, lista, observaciones)
+    prestador = resultado_cadena.prestador if resultado_cadena else None
 
     vigente = _vigencia_a_la_firma(certificado, raiz, observaciones)
     ruc_certificado = certificado.ruc if certificado else None
@@ -284,6 +286,7 @@ def verificar_documento(
         esquema_valido=not problemas,
         problemas_de_esquema=problemas,
         firma=resultado_firma,
+        cadena=resultado_cadena,
         prestador=prestador,
         certificado_vigente_a_la_firma=vigente,
         ruc_del_certificado=ruc_certificado,
@@ -297,22 +300,23 @@ def verificar_documento(
 def leer_documentos(
     rutas: list[Path] | list[str],
     *,
-    registro: RegistroDePrestadores | None = None,
+    lista: ListaDeConfianza | None = None,
 ) -> list[Verificacion]:
     """Verifica varios documentos reutilizando el esquema ya compilado.
 
     Compilar el esquema completo lleva del orden de un segundo; hacerlo una vez
     por documento haría inviable procesar un lote. Acá se compila una sola vez,
-    igual que el registro de prestadores.
+    igual que la lista de confianza.
 
     Args:
         rutas: los archivos a verificar.
-        registro: los prestadores. Por omisión se arma una vez y se reutiliza.
+        lista: las anclas de confianza. Por omisión se lee una vez y se
+            reutiliza.
 
     Returns:
         Un informe por documento, en el mismo orden.
     """
-    conocidos = registro or RegistroDePrestadores.desde_entry_points()
+    anclas = lista or lista_de_confianza()
     informes: list[Verificacion] = []
     for ruta in rutas:
         camino = Path(ruta)
@@ -323,7 +327,7 @@ def leer_documentos(
                 Verificacion(observaciones=(f"no pude leer {camino}: {exc}",))
             )
             continue
-        informes.append(verificar_documento(contenido, registro=conocidos))
+        informes.append(verificar_documento(contenido, lista=anclas))
     return informes
 
 
@@ -382,15 +386,40 @@ def _datos_del_documento(raiz: etree._Element) -> dict[str, Any]:
     return datos
 
 
-def _identificar_prestador(
-    certificado: Certificado | None, registro: RegistroDePrestadores | None
-) -> str | None:
-    """Devuelve el nombre del prestador que emitió el certificado."""
+def _validar_cadena(
+    certificado: Certificado | None,
+    raiz: etree._Element,
+    lista: ListaDeConfianza | None,
+    observaciones: list[str],
+) -> ResultadoDeCadena | None:
+    """Valida la cadena del certificado hasta una raíz reconocida.
+
+    Se evalúa a la fecha de la firma, no a la de hoy: una autoridad que vence
+    el mes que viene no invalida lo que firmó estando vigente.
+    """
     if certificado is None:
         return None
-    conocidos = registro or RegistroDePrestadores.desde_entry_points()
-    encontrado = conocidos.identificar(certificado)
-    return encontrado.datos.nombre if encontrado else None
+
+    anclas = lista or lista_de_confianza()
+    resultado = validar_cadena(certificado, lista=anclas, momento=_fecha_de_firma(raiz))
+    if not resultado.valida and resultado.motivo:
+        observaciones.append(f"la cadena de confianza no cierra: {resultado.motivo}")
+    return resultado
+
+
+def _fecha_de_firma(raiz: etree._Element) -> datetime | None:
+    """Devuelve la fecha declarada de la firma, si se puede interpretar."""
+    de = raiz.find(f"{{{NS_SIFEN}}}DE")
+    if de is None:
+        return None
+    crudo = _texto(de, "/dFecFirma")
+    if not crudo:
+        return None
+    try:
+        momento = datetime.fromisoformat(crudo)
+    except ValueError:
+        return None
+    return momento if momento.tzinfo else momento.replace(tzinfo=UTC)
 
 
 def _vigencia_a_la_firma(

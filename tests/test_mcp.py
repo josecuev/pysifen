@@ -121,7 +121,7 @@ class TestVerificar:
     async def test_siempre_declara_su_limite(self, servidor: Any) -> None:
         # Quien lea la respuesta tiene que saber qué NO se verificó.
         datos = await _llamar(servidor, "verificar_factura", {"xml": "<roto"})
-        assert "falsificable" in datos["limite_de_la_verificacion"]
+        assert "revocados" in datos["limite_de_la_verificacion"]
 
     @pytest.mark.anyio
     async def test_el_lote_vacio_vuelve_como_dato(self, servidor: Any) -> None:

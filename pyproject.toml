@@ -1,6 +1,6 @@
 [project]
 name = "pysifen"
-version = "0.2.0"
+version = "0.4.0"
 description = "Librería Python para el Sistema Integrado de Facturación Electrónica Nacional (SIFEN) de Paraguay"
 readme = "README.md"
 license = "MIT"

@@ -1,10 +1,48 @@
 # Notas para agentes de IA
 
-Esta página está escrita para un agente que tenga que usar `pysifen` para
-emitir documentos electrónicos. Es más directa que el resto de la documentación
-y se concentra en lo que suele salir mal.
+Esta página está escrita para un agente que tenga que usar `pysifen`. Es más
+directa que el resto de la documentación y se concentra en lo que suele salir
+mal.
 
 Si sos una persona, también sirve: son las mismas trampas.
+
+## Si lo que tenés que hacer es *leer* un documento
+
+Empezá por acá, porque es el caso frecuente y se resuelve en una línea:
+
+```python
+from pysifen.lectura import verificar_documento
+
+resultado = verificar_documento(xml_recibido)
+resultado.confiable  # el veredicto: True significa auténtico
+resultado.resumir()  # dict compacto, serializable, listo para razonar sobre él
+```
+
+Tres cosas que conviene saber antes de usar el resultado:
+
+1. **`confiable` significa auténtico**, no "parece bien". Exige esquema, firma,
+   cadena de confianza hasta la Autoridad Certificadora Raíz del Paraguay,
+   vigencia a la firma, RUC, CDC y QR. Cualquier comprobación que no se pueda
+   hacer cuenta como fallada.
+2. **`resumir()` declara su propio límite**, en `limite_de_la_verificacion`. Hoy
+   dice que no se consulta la revocación. Leelo y pasalo adelante: si informás
+   un veredicto sin su límite, estás afirmando más de lo que se comprobó.
+3. **`tolerancias` no está vacío gratis.** Si tiene algo, la firma verificó pero
+   el documento no era estrictamente conforme al estándar. No es motivo de
+   alarma —son desvíos conocidos de emisores reales— pero quien audita tiene
+   derecho a saberlo.
+
+No hace falta certificado propio ni estar habilitado como facturador para nada
+de esto.
+
+!!! warning "El documento no se cree a sí mismo"
+    Nada de lo que el documento *dice* sobre su emisor cuenta como prueba: el
+    nombre del prestador, la razón social y el RUC son texto. Lo que prueba es
+    la firma y la cadena. Si tenés que reportar de quién es un documento, usá
+    `resultado.prestador`, que sale de la Lista de Confianza oficial, y no lo
+    que diga el certificado de sí mismo.
+
+El resto de esta página es para **emitir**.
 
 ## Lo primero: no adivines la estructura
 
@@ -147,7 +185,8 @@ Devuelve `2` si el documento es inválido, así que sirve en un script.
 ## Cómo saber si la normativa cambió
 
 ```bash
-python scripts/verificar_esquemas.py    # compara los esquemas contra la DNIT
+python scripts/verificar_esquemas.py             # los esquemas, contra la DNIT
+python scripts/verificar_lista_de_confianza.py   # la Lista de Confianza del MIC
 ```
 
 El detalle de qué vigilar y dónde está en

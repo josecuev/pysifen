@@ -76,17 +76,29 @@ jobs:
             echo "cambiaron=si" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: ¿Cambió la Lista de Confianza?
+        id: confianza
+        run: |
+          set -uo pipefail
+          if poetry run python scripts/verificar_lista_de_confianza.py; then
+            echo "cambio=" >> "$GITHUB_OUTPUT"
+          else
+            echo "cambio=si" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Abrir un issue si hay novedades
         if: >-
           steps.notas.outputs.nuevas != '' ||
           steps.manual.outputs.otras != '' ||
-          steps.esquemas.outputs.cambiaron != ''
+          steps.esquemas.outputs.cambiaron != '' ||
+          steps.confianza.outputs.cambio != ''
         uses: actions/github-script@v7
         with:
           script: |
             const notas = '${{ steps.notas.outputs.nuevas }}';
             const manual = '${{ steps.manual.outputs.otras }}';
             const esquemas = '${{ steps.esquemas.outputs.cambiaron }}';
+            const confianza = '${{ steps.confianza.outputs.cambio }}';
             const salto = String.fromCharCode(10, 10);
             let cuerpo = 'La vigilancia semanal encontró novedades en las fuentes oficiales.\n\n';
             if (notas) {
@@ -105,6 +117,16 @@ jobs:
               cuerpo += 'para ver cuales, bajar las versiones nuevas, regenerar el manifiesto ';
               cuerpo += 'y revisar que cambio antes de publicar.' + salto;
             }
+            if (confianza) {
+              cuerpo += '**La Lista de Confianza cambio, o la copia incluida caduco.**' + salto;
+              cuerpo += 'Es lo que decide que certificados son de un prestador cualificado ';
+              cuerpo += 'habilitado. Si el MIC habilito a un prestador nuevo y la copia no lo ';
+              cuerpo += 'trae, sus documentos se rechazan sin culpa; si le retiro la ';
+              cuerpo += 'habilitacion a uno y la copia no se actualiza, se aceptan y es peor. ';
+              cuerpo += 'Correr `python scripts/verificar_lista_de_confianza.py` para ver el ';
+              cuerpo += 'detalle, bajar `tsl_Py.xml`, regenerar el manifiesto y revisar que ';
+              cuerpo += 'prestadores cambiaron.' + salto;
+            }
             cuerpo += 'Fuentes y procedimiento: `docs/mantenimiento/vigilancia-normativa.md`';
 
             await github.rest.issues.create({
@@ -119,6 +141,7 @@ jobs:
         if: >-
           steps.notas.outputs.nuevas == '' &&
           steps.manual.outputs.otras == '' &&
-          steps.esquemas.outputs.cambiaron == ''
+          steps.esquemas.outputs.cambiaron == '' &&
+          steps.confianza.outputs.cambio == ''
         run: |
-          echo "Sin cambios: Manual Técnico v${VERSION_MANUAL}, NT-${ULTIMA_NOTA_TECNICA}, esquemas intactos."
+          echo "Sin cambios: Manual Técnico v${VERSION_MANUAL}, NT-${ULTIMA_NOTA_TECNICA}, esquemas y Lista de Confianza intactos."

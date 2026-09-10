@@ -58,18 +58,38 @@ grupos 19 a 24 con vencimientos escalonados hasta setiembre de 2027.
 
 El calendario vigente está en [Normativa vigente](../normativa-vigente.md).
 
-## 3. Prestadores cualificados
+## 3. La Lista de Confianza — la que decide en quién confiar
 
-<https://www.acraiz.gov.py/html/Certif_1PrestaServ.html>
+<https://www.acraiz.gov.py/tsl/tsl_Py.xml>
 
-Registro de la Autoridad Certificadora Raíz, administrada por el Ministerio de
-Industria y Comercio. Qué mirar: prestadores nuevos habilitados, o alguno que
-pierda la habilitación.
+La publica el Ministerio de Industria y Comercio, como administrador de la
+Autoridad Certificadora Raíz del Paraguay, en formato ETSI TS 119 612. Trae los
+certificados de las autoridades de cada prestador cualificado y el **estado de
+cada servicio**. Es contra esto que la librería valida la cadena de confianza:
+ver [la decisión 0004](../decisiones/0004-cadena-de-confianza.md).
 
-Hoy son **siete**. Cuando aparezca el octavo, se agrega una fábrica en
-`pysifen/pki/prestadores.py` y su *entry point* en el `pyproject.toml`. No hace
-falta tocar nada más: ver
-[Custodia del certificado](../seguridad/custodia.md).
+Hay una copia en `src/pysifen/confianza/tsl_Py.xml`, con su manifiesto al lado.
+
+```bash
+python scripts/verificar_lista_de_confianza.py
+```
+
+Compara SHA-256 y número de secuencia contra la publicada, y avisa cuando la
+copia está por caducar —la lista trae su propia fecha de próxima
+actualización—.
+
+!!! danger "Una copia vieja falla de las dos maneras"
+    Si el MIC habilitó a un prestador nuevo y la copia no lo trae, sus
+    documentos se rechazan sin que nadie tenga la culpa. Si le **retiró** la
+    habilitación a otro y la copia no se actualizó, sus documentos se siguen
+    aceptando. La segunda es la grave, y es silenciosa.
+
+Cuando cambie: bajar `tsl_Py.xml`, regenerar el manifiesto y revisar qué
+prestadores entraron o salieron antes de publicar.
+
+El listado legible de prestadores habilitados está en
+<https://www.acraiz.gov.py/html/Certif_1PrestaServ.html> y en el portal del MIC.
+Sirve para leer; la que manda es la lista.
 
 ## 4. Los esquemas XSD — la fuente que más importa
 
@@ -129,9 +149,9 @@ así que un reloj corrido produce rechazos difíciles de diagnosticar.
 ## Chequeo automático
 
 El workflow `.github/workflows/vigilancia.yml` corre cada lunes y abre un
-issue si aparece una nota técnica nueva, si cambia la versión del manual, o
-—lo más importante— **si cambia alguno de los esquemas publicados**. No
-reemplaza mirar, pero evita enterarse tarde.
+issue si aparece una nota técnica nueva, si cambia la versión del manual, si
+cambia **alguno de los esquemas publicados**, o si cambia o caduca **la Lista de
+Confianza**. No reemplaza mirar, pero evita enterarse tarde.
 
 ## Resumen
 
@@ -141,5 +161,6 @@ reemplaza mirar, pero evita enterarse tarde.
 | Notas técnicas | misma página, o probar la URL de la siguiente | NT-027 |
 | Resoluciones | `dnit.gov.py/web/portal-institucional/resoluciones` | RG 52/2026 |
 | Prestadores | `acraiz.gov.py/html/Certif_1PrestaServ.html` | 7 habilitados |
+| **Lista de Confianza** | `acraiz.gov.py/tsl/tsl_Py.xml` | secuencia 8, hasta 2026-11-07 |
 | Versión real en uso | `schemaLocation` de cualquier DTE recibido | `siRecepDE_v150.xsd` |
 | **Esquemas XSD** | `ekuatia.set.gov.py/sifen/xsd/` | 11 archivos, verificados |

@@ -17,3 +17,6 @@
 *.png binary
 *.jpg binary
 *.pdf binary
+
+# La lista de confianza se guarda tal cual la publica el MIC.
+tsl_Py.xml -text

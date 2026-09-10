@@ -21,6 +21,23 @@ Agregar un prestador nuevo no requiere modificar este módulo ni ningún otro de
 núcleo. Alcanza con publicar una clase que cumpla el protocolo y declararla en
 el grupo ``pysifen.psc`` del ``pyproject.toml``, sea en esta librería o en un
 paquete de terceros.
+
+Esto **no** decide en quién confiar
+------------------------------------
+
+Importa no confundirse: lo que hay acá son *datos* sobre los prestadores —cómo
+se llaman, qué tipos de certificado emiten, dónde publican sus servicios—. Nada
+de eso prueba nada sobre un certificado concreto.
+
+Identificar a un prestador comparando el nombre del emisor contra esta lista
+**clasifica, no prueba**: ese nombre es texto que cualquiera escribe en un
+certificado autofirmado. Quien decide si un certificado es de un prestador
+cualificado habilitado es :mod:`pysifen.pki.cadena`, verificando la firma de
+cada eslabón contra la Lista de Confianza oficial del MIC.
+
+La utilidad de este registro es la otra: una vez que la cadena probó de quién
+es el certificado, acá está lo que hay que saber sobre ese prestador. Es el
+lugar natural para los puntos de consulta de revocación cuando se implementen.
 """
 
 from __future__ import annotations

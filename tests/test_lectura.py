@@ -1,12 +1,18 @@
 """Pruebas de la lectura y verificación de documentos recibidos.
 
-Los documentos de prueba se arman y firman acá con un certificado autofirmado.
-En el repositorio no entra ningún documento tributario real: traen datos de
-contribuyentes.
+Los documentos de prueba se arman y firman acá, con un certificado emitido por
+la jerarquía de prueba que arma ``conftest``. En el repositorio no entra ningún
+documento tributario real: traen datos de contribuyentes.
+
+Casi todas las pruebas verifican contra ``anclas_de_prueba`` y no contra la
+Lista de Confianza real. No es una comodidad: la lista real sólo reconoce a los
+prestadores cualificados de verdad, así que un documento de prueba jamás podría
+salir confiable contra ella. Y que no pueda es exactamente lo que se quiere.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -20,6 +26,7 @@ from pysifen.documento import (
     sobre_rde,
 )
 from pysifen.lectura import Verificacion, leer_documentos, verificar_documento
+from pysifen.pki.cadena import ListaDeConfianza
 from pysifen.signing import firmar_documento
 from pysifen.signing.backends.pkcs12 import FirmantePkcs12
 from pysifen.signing.verificacion import verificar_firma
@@ -53,16 +60,30 @@ def _documento_firmado(firmante: FirmantePkcs12) -> bytes:
     return firmar_documento(etree.tostring(sobre_rde(de, CDC)), firmante)
 
 
+@pytest.fixture
+def verificar(anclas_de_prueba: ListaDeConfianza) -> Callable[..., Verificacion]:
+    """Verifica contra la jerarquía de prueba en vez de contra la real."""
+
+    def _verificar(xml: object, **extras: object) -> Verificacion:
+        return verificar_documento(xml, lista=anclas_de_prueba, **extras)  # type: ignore[arg-type]
+
+    return _verificar
+
+
 class TestVerificacionDeLaFirma:
     """Lo que detecta que un documento fue alterado."""
 
-    def test_una_firma_propia_verifica(self, firmante: FirmantePkcs12) -> None:
+    def test_una_firma_propia_verifica(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         arbol = etree.fromstring(_documento_firmado(firmante))
         resultado = verificar_firma(arbol)
         assert resultado.valida
         assert resultado.certificado is not None
 
-    def test_detecta_un_solo_caracter_cambiado(self, firmante: FirmantePkcs12) -> None:
+    def test_detecta_un_solo_caracter_cambiado(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         # Es la prueba que importa: cambiar un dígito del código de seguridad
         # tiene que romper la firma.
         firmado = _documento_firmado(firmante).replace(b"587326098", b"587326099")
@@ -91,7 +112,9 @@ class TestVerificacionDeLaFirma:
         assert resultado.tiene_firma is False
         assert resultado.valida is False
 
-    def test_una_firma_incompleta(self, firmante: FirmantePkcs12) -> None:
+    def test_una_firma_incompleta(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         arbol = etree.fromstring(_documento_firmado(firmante))
         ds = "{http://www.w3.org/2000/09/xmldsig#}"
         valor = arbol.find(f"{ds}Signature/{ds}SignatureValue")
@@ -155,58 +178,76 @@ class TestTolerancias:
         assert resultado.valida is False
         assert resultado.tolerancias == ()
 
-    def test_el_informe_declara_las_tolerancias(self, firmante: FirmantePkcs12) -> None:
+    def test_el_informe_declara_las_tolerancias(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         arbol = etree.fromstring(_documento_firmado(firmante))
         indentado = etree.tostring(arbol, pretty_print=True)
 
-        resultado = verificar_documento(indentado)
+        resultado = verificar(indentado)
         assert resultado.tolerancias
         assert "tolerancias" in resultado.resumir()
         assert any("estrictamente conforme" in o for o in resultado.observaciones)
 
 
 class TestInformeCompleto:
-    def test_reune_todas_las_comprobaciones(self, firmante: FirmantePkcs12) -> None:
-        resultado = verificar_documento(_documento_firmado(firmante))
+    def test_reune_todas_las_comprobaciones(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resultado = verificar(_documento_firmado(firmante))
         assert resultado.firma_valida is True
         assert resultado.cdc == CDC
         assert resultado.cdc_coherente is True
 
-    def test_identificar_al_prestador_no_prueba_nada(
-        self, firmante: FirmantePkcs12
+    def test_el_prestador_sale_de_la_cadena_y_no_del_nombre(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
     ) -> None:
-        # El certificado de prueba es AUTOFIRMADO y aun así se lo identifica
-        # como DOCUMENTA, porque así dice su campo de emisor. Este test deja
-        # constancia de la limitación: identificar por nombre clasifica, no
-        # prueba. Va a cambiar cuando se valide la cadena de confianza.
-        resultado = verificar_documento(_documento_firmado(firmante))
-        assert resultado.prestador == "DOCUMENTA S.A."
+        # El prestador que se informa es el que EMITIÓ el certificado según la
+        # lista de confianza, comprobando su firma en cada eslabón. No el nombre
+        # que el certificado declara, que es texto que cualquiera escribe.
+        resultado = verificar(_documento_firmado(firmante))
+        assert resultado.cadena_valida
+        assert resultado.prestador == "PRESTADOR DE PRUEBA S.A."
+        assert resultado.cadena is not None
+        assert resultado.cadena.cadena[-1] == "Autoridad Certificadora Raíz de Prueba"
 
-    def test_un_emisor_desconocido_si_se_reporta(self) -> None:
+    def test_un_certificado_que_dice_ser_de_un_prestador_no_alcanza(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # Es el ataque que la validación de cadena cierra: un certificado
+        # AUTOFIRMADO que declara "DOCUMENTA S.A." como emisor. El nombre es
+        # texto libre; la firma de DOCUMENTA sobre él, no. Antes esto pasaba
+        # como confiable.
         from pysifen.security.secretos import Secreto
 
-        cert = construir_certificado(
-            ruc_en_subject="RUC80012345-6", emisor="CERTIFICADORA IMAGINARIA S.A."
+        impostor = construir_certificado(
+            ruc_en_subject="RUC80012345-6", emisor="DOCUMENTA S.A."
         )
         with pytest.warns(UserWarning, match="custodia"):
             firmante = FirmantePkcs12.desde_bytes(
-                construir_pkcs12(cert),
+                construir_pkcs12(impostor),
                 Secreto("prueba"),
                 permitir_clave_en_memoria=True,
             )
-        resultado = verificar_documento(_documento_firmado(firmante))
+        resultado = verificar(_documento_firmado(firmante))
+        assert resultado.firma_valida is True  # la firma cierra: es su clave
+        assert resultado.cadena_valida is False  # pero no encadena con nadie
         assert resultado.prestador is None
         assert resultado.confiable is False
-        assert any("prestador" in o for o in resultado.observaciones)
+        assert any("cadena de confianza" in o for o in resultado.observaciones)
 
     def test_el_resumen_declara_su_propio_limite(
-        self, firmante: FirmantePkcs12
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
     ) -> None:
-        # Un modelo que lea esto tiene que enterarse de qué NO se verificó.
-        resumen = verificar_documento(_documento_firmado(firmante)).resumir()
-        assert "falsificable" in resumen["limite_de_la_verificacion"]
+        # Un modelo que lea esto tiene que enterarse de qué NO se verificó. Lo
+        # único que queda afuera es la revocación, que necesita red.
+        resumen = verificar(_documento_firmado(firmante)).resumir()
+        assert "revocados" in resumen["limite_de_la_verificacion"]
+        assert resumen["verificacion"]["cadena_de_confianza"] is True
 
-    def test_detecta_el_certificado_vencido_al_firmar(self) -> None:
+    def test_detecta_el_certificado_vencido_al_firmar(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
         # Lo que importa es la vigencia al momento de la firma, no la de hoy.
         ahora = datetime.now(tz=None).astimezone()
         cert = construir_certificado(
@@ -222,65 +263,80 @@ class TestInformeCompleto:
                 Secreto("prueba"),
                 permitir_clave_en_memoria=True,
             )
-        resultado = verificar_documento(_documento_firmado(firmante))
+        resultado = verificar(_documento_firmado(firmante))
         assert resultado.certificado_vigente_a_la_firma is False
         assert any("vigente" in o for o in resultado.observaciones)
 
-    def test_un_xml_roto_no_lanza(self) -> None:
-        resultado = verificar_documento(b"<esto no es xml")
+    def test_un_xml_roto_no_lanza(self, verificar: Callable[..., Verificacion]) -> None:
+        resultado = verificar(b"<esto no es xml")
         assert resultado.confiable is False
         assert resultado.observaciones
 
-    def test_acepta_un_lote(self, firmante: FirmantePkcs12) -> None:
+    def test_acepta_un_lote(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         lote = etree.Element("rLoteDE")
         lote.append(etree.fromstring(_documento_firmado(firmante)))
-        assert verificar_documento(lote).firma_valida is True
+        assert verificar(lote).firma_valida is True
 
-    def test_avisa_si_el_lote_trae_varios(self, firmante: FirmantePkcs12) -> None:
+    def test_avisa_si_el_lote_trae_varios(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         lote = etree.Element("rLoteDE")
         for _ in range(2):
             lote.append(etree.fromstring(_documento_firmado(firmante)))
-        resultado = verificar_documento(lote)
+        resultado = verificar(lote)
         assert any("2 documentos" in o for o in resultado.observaciones)
 
 
 class TestResumenParaModelos:
     """La representación compacta, que es la que consume un modelo."""
 
-    def test_es_mucho_mas_chico_que_el_xml(self, firmante: FirmantePkcs12) -> None:
+    def test_es_mucho_mas_chico_que_el_xml(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         firmado = _documento_firmado(firmante)
-        resumen = verificar_documento(firmado).resumir()
+        resumen = verificar(firmado).resumir()
         import json
 
         texto = json.dumps(resumen, ensure_ascii=False)
         assert len(texto) < len(firmado) / 3
 
-    def test_el_veredicto_va_primero(self, firmante: FirmantePkcs12) -> None:
-        resumen = verificar_documento(_documento_firmado(firmante)).resumir()
+    def test_el_veredicto_va_primero(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resumen = verificar(_documento_firmado(firmante)).resumir()
         assert next(iter(resumen)) == "confiable"
 
-    def test_omite_lo_que_no_tiene_valor(self, firmante: FirmantePkcs12) -> None:
-        resumen = verificar_documento(_documento_firmado(firmante)).resumir()
+    def test_omite_lo_que_no_tiene_valor(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resumen = verificar(_documento_firmado(firmante)).resumir()
         assert None not in resumen.values()
 
-    def test_es_serializable_a_json(self, firmante: FirmantePkcs12) -> None:
+    def test_es_serializable_a_json(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
         import json
 
-        json.dumps(verificar_documento(_documento_firmado(firmante)).resumir())
+        json.dumps(verificar(_documento_firmado(firmante)).resumir())
 
 
 class TestLote:
     def test_procesa_varios_archivos(
-        self, firmante: FirmantePkcs12, tmp_path: Path
+        self,
+        firmante: FirmantePkcs12,
+        tmp_path: Path,
+        anclas_de_prueba: ListaDeConfianza,
     ) -> None:
         rutas = []
         for indice in range(3):
             archivo = tmp_path / f"documento{indice}.xml"
             archivo.write_bytes(_documento_firmado(firmante))
             rutas.append(archivo)
-        informes = leer_documentos(rutas)
+        informes = leer_documentos(rutas, lista=anclas_de_prueba)
         assert len(informes) == 3
-        assert all(i.firma_valida for i in informes)
+        assert all(i.firma_valida and i.cadena_valida for i in informes)
 
     def test_un_archivo_que_no_existe_no_frena_el_lote(self, tmp_path: Path) -> None:
         informes = leer_documentos([tmp_path / "no-existe.xml"])
@@ -289,8 +345,10 @@ class TestLote:
 
 
 class TestInformeLegible:
-    def test_incluye_el_veredicto(self, firmante: FirmantePkcs12) -> None:
-        texto = verificar_documento(_documento_firmado(firmante)).informe()
+    def test_incluye_el_veredicto(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        texto = verificar(_documento_firmado(firmante)).informe()
         assert CDC in texto
         assert "firma" in texto
 

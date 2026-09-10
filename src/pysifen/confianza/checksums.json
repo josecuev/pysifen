@@ -1,0 +1,10 @@
+{
+  "origen": "https://www.acraiz.gov.py/tsl/tsl_Py.xml",
+  "descargado": "2026-09-10",
+  "que_es": "Lista de Confianza (TSL) del Paraguay, en formato ETSI TS 119 612, publicada por el Ministerio de Industria y Comercio como administrador de la Autoridad Certificadora Raiz. Contiene los certificados de las autoridades certificadoras de los prestadores cualificados y el estado de cada servicio.",
+  "secuencia": 8,
+  "emitida": "2026-05-07T03:00:00Z",
+  "proxima_actualizacion": "2026-11-07T02:59:59Z",
+  "sha256": "767179af5627df45aa4d2109ffb0894ff2a3b79ddd9b80a1fb2d4da9dc896bf5",
+  "bytes": 174441
+}

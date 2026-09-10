@@ -107,4 +107,5 @@ nav:
       - Orden de los campos: decisiones/0001-orden-de-los-campos.md
       - Canonicalización: decisiones/0002-canonicalizacion.md
       - Esquemas oficiales: decisiones/0003-esquemas-oficiales.md
+      - Cadena de confianza: decisiones/0004-cadena-de-confianza.md
   - Referencia de la API: referencia/

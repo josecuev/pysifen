@@ -9,7 +9,7 @@ cuando se puede demostrar, no cuando parece que sí.
 
 ## Dónde estamos
 
-### 0.2.0 — el núcleo estructural (publicada)
+### 0.4.0 — leer y verificar de verdad (actual)
 
 Lo que hay hoy:
 
@@ -23,9 +23,11 @@ Lo que hay hoy:
 | Firma XMLDSig | Verificada con una implementación independiente |
 | Custodia de la clave (F1, F2, F3) y auditoría | Los tres backends |
 | Lectura de certificados y prestadores cualificados | Probada contra un certificado real |
+| Cadena de confianza hasta la Raíz del Paraguay | 5 certificados reales encadenan; un autofirmado que dice ser de DOCUMENTA se rechaza |
+| Servidor MCP sin estado | 6 herramientas, stdio y Streamable HTTP |
 | Línea de comandos | Operación y auto-descripción |
 
-Lo que **no** hay: transmitir.
+Lo que **no** hay: revocación, lectura completa a modelos, transmitir.
 
 ## Lo que falta
 
@@ -48,33 +50,31 @@ la 1.0.0 no lo cubre.
 
 ## Camino a la 1.0.0 — leer y validar
 
-### 0.3.0 — la cadena de confianza
-
-Es el hueco que hoy impide decir "auténtico".
-
-El prestador se identifica comparando el nombre del emisor del certificado
-contra una lista, y ese nombre es texto que cualquiera escribe en un
-certificado autofirmado. Sirve para clasificar, no para probar.
-
-Qué hace falta: los certificados raíz de los siete prestadores habilitados, y
-verificar la ruta de confianza desde el certificado del documento hasta uno de
-ellos.
+### 0.3.0 — la cadena de confianza ✔
 
 **Criterio**: un certificado autofirmado que dice ser de DOCUMENTA es
 rechazado; uno realmente emitido por DOCUMENTA es aceptado.
 
-### 0.4.0 — entender por qué fallan las firmas reales
+**Cumplido.** Las anclas salen de la [Lista de Confianza][tsl] que publica el
+Ministerio de Industria y Comercio en formato ETSI TS 119 612, y en cada eslabón
+se comprueba la firma, no el nombre. Los cinco certificados reales encadenan
+hasta la Autoridad Certificadora Raíz del Paraguay; el autofirmado no encadena
+con nadie. Ver [la decisión 0004](decisiones/0004-cadena-de-confianza.md).
 
-De cinco documentos reales de cinco emisores distintos, **cuatro no verifican
-su firma**. No es un error del verificador: una implementación independiente
-falla en los mismos cuatro.
+  [tsl]: https://www.acraiz.gov.py/tsl/tsl_Py.xml
 
-Hasta saber por qué, la herramienta no se puede recomendar: diría "no
-confiable" sobre documentos legítimos.
+### 0.4.0 — entender por qué fallan las firmas reales ✔
 
 **Criterio**: explicación documentada de cada caso, y si resulta ser de la
 librería, corregido. Si resulta del camino por correo o del emisor, dicho con
 evidencia.
+
+**Cumplido.** Eran dos desvíos del lado del emisor, ninguno de la librería: el
+`SignedInfo` canonicalizado en aislamiento —el emisor arma la firma como
+documento aparte antes de insertarla— y el XML indentado después de firmar. El
+verificador los tolera y **declara cuál toleró**, en `tolerancias`. El quinto
+documento no corresponde a su propio resumen bajo ninguna interpretación, y se
+rechaza.
 
 ### 0.5.0 — lectura completa a modelos
 
@@ -96,12 +96,15 @@ pudo comprobar en vez de darlo por bueno.
 
 **Criterio**:
 
-- [ ] Las cuatro anteriores.
+- [x] 0.3.0 — cadena de confianza.
+- [x] 0.4.0 — firmas reales explicadas.
+- [ ] 0.5.0 — lectura completa a modelos.
+- [ ] 0.6.0 — revocación.
 - [ ] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
       firma, revocación, coherencia de CDC y QR.
 - [ ] Documentos reales de emisores distintos verificados correctamente.
-- [ ] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
-      pasaron".
+- [x] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
+      pasaron". Falta sólo la revocación, que se declara en cada respuesta.
 - [ ] La API pública de lectura, estable.
 
 A partir de acá, un cambio incompatible en la API de lectura obliga a subir la
