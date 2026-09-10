@@ -9,7 +9,7 @@ cuando se puede demostrar, no cuando parece que sí.
 
 ## Dónde estamos
 
-### 0.6.0 — leer y verificar de verdad (actual)
+### 1.0.0 — leer y validar, al 100% (actual)
 
 Lo que hay hoy:
 
@@ -118,7 +118,7 @@ mirarla. Si algo no cierra, el resultado es **desconocido**, nunca "vigente".
 Los cuatro certificados reales se consultaron contra los respondedores de
 DOCUMENTA y de ITTI: los cuatro vigentes, en 2,1 segundos para el lote.
 
-### 1.0.0 — leer y validar, al 100%
+### El detalle de la 1.0.0
 
 **Criterio**:
 
@@ -132,10 +132,17 @@ DOCUMENTA y de ITTI: los cuatro vigentes, en 2,1 segundos para el lote.
 - [x] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
       pasaron". Con `revocacion=True` el resumen ya no declara **ningún**
       límite.
-- [ ] La API pública de lectura, estable.
+- [x] La API pública de lectura, estable. Es lo que declara `pysifen.__all__`:
+      treinta y dos nombres. Un cambio incompatible ahí obliga a subir la
+      versión mayor; lo que no esté en esa lista puede cambiar.
 
 A partir de acá, un cambio incompatible en la API de lectura obliga a subir la
 versión mayor.
+
+Qué **no** cubre la promesa: armar y firmar documentos propios. Funciona y está
+probado, pero se cierra en la 2.0.0, cuando haya un documento aceptado por el
+SIFEN. El primer contacto real con el organismo casi seguro obliga a cambiar
+algo.
 
 ## Camino a la 2.0.0 — emitir
 

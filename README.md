@@ -81,10 +81,14 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 
 ## Estado
 
-> [!WARNING]
-> Versión 0.6.0. Lee y verifica documentos recibidos de punta a punta, y arma y
-> firma documentos propios, pero **todavía no los transmite al SIFEN**. La API
-> puede cambiar mientras la versión empiece en `0.`. Ver la
+> [!NOTE]
+> **Versión 1.0.0.** Leer un documento recibido y decir si se puede confiar en
+> él está completo y estabilizado: un cambio incompatible en esa API obliga a
+> subir la versión mayor.
+>
+> Armar y firmar documentos propios funciona y está probado, pero **todavía no
+> se transmiten al SIFEN** y esa parte de la API no está congelada: se cierra en
+> la 2.0.0. Ver la
 > [hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/).
 
 | Componente | Estado |

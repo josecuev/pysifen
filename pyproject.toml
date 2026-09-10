@@ -1,6 +1,6 @@
 [project]
 name = "pysifen"
-version = "0.6.0"
+version = "1.0.0"
 description = "Librería Python para el Sistema Integrado de Facturación Electrónica Nacional (SIFEN) de Paraguay"
 readme = "README.md"
 license = "MIT"
@@ -18,7 +18,7 @@ keywords = [
     "e-invoicing",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
     "Natural Language :: Spanish",
