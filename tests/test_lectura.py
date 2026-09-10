@@ -354,3 +354,156 @@ class TestInformeLegible:
 
     def test_un_informe_vacio_no_rompe(self) -> None:
         assert Verificacion().informe()
+
+
+#: Un rDE con los grupos que la lectura mira: emisor, totales, items y QR.
+#:
+#: Se arma como texto y no con los modelos porque lo que se prueba es la
+#: LECTURA: hace falta poder desalinear el QR del documento a mano, que es
+#: justo lo que los modelos impiden.
+DOCUMENTO_CON_QR = """<?xml version="1.0" encoding="UTF-8"?>
+<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd">
+  <dVerFor>150</dVerFor>
+  <DE Id="{cdc}">
+    <dDVId>8</dDVId>
+    <dFecFirma>2026-09-10T10:00:00</dFecFirma>
+    <dSisFact>1</dSisFact>
+    <gTimb><iTiDE>1</iTiDE></gTimb>
+    <gDatGralOpe>
+      <dFeEmiDE>2026-09-10T09:55:00</dFeEmiDE>
+      <gEmis>
+        <dRucEm>80012345</dRucEm>
+        <dDVEmi>6</dDVEmi>
+        <dNomEmi>CONTRIBUYENTE DE PRUEBA S.A.</dNomEmi>
+      </gEmis>
+    </gDatGralOpe>
+    <gDtipDE><gCamItem><dCodInt>1</dCodInt></gCamItem></gDtipDE>
+    <gTotSub>
+      <dTotGralOpe>36500.00000000</dTotGralOpe>
+      <dTotIVA>3318.18181818</dTotIVA>
+    </gTotSub>
+  </DE>
+  <gCamFuFD><dCarQR>{qr}</dCarQR></gCamFuFD>
+</rDE>
+"""
+
+#: Los parámetros que el QR publica, coherentes con el documento de arriba.
+QR_COHERENTE = (
+    "https://ekuatia.set.gov.py/consultas/qr?nVersion=150&Id={cdc}"
+    "&dFeEmiDE=32303236&dRucRec=80054321&dTotGralOpe=36500.00000000"
+    "&dTotIVA=3318.18181818&cItems=1&DigestValue=61626364&IdCSC=0001"
+)
+
+
+def _con_qr(**cambios: str) -> bytes:
+    """Arma el documento de arriba, con el QR alterado si se pide."""
+    qr = QR_COHERENTE.format(cdc=CDC)
+    for clave, valor in cambios.items():
+        viejo = f"{clave}=" + qr.split(f"{clave}=")[1].split("&")[0]
+        qr = qr.replace(viejo, f"{clave}={valor}")
+    # El QR va dentro de un elemento XML: sus "&" tienen que ir escapados, tal
+    # como los escribe un emisor real.
+    return DOCUMENTO_CON_QR.format(cdc=CDC, qr=qr.replace("&", "&amp;")).encode()
+
+
+class TestDatosDelDocumento:
+    """Lo que se extrae de un documento con todos sus grupos."""
+
+    def test_extrae_lo_que_identifica_al_documento(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resultado = verificar(_con_qr(), validar_esquema=False)
+
+        assert resultado.cdc == CDC
+        assert resultado.ruc_emisor == "80012345-6"
+        assert resultado.razon_social_emisor == "CONTRIBUYENTE DE PRUEBA S.A."
+        assert resultado.total == "36500.00000000"
+        assert resultado.tipo_documento is not None
+        assert resultado.tipo_documento.descripcion == "Factura electrónica"
+
+    def test_el_resumen_no_repite_el_xml(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        import json
+
+        crudo = _con_qr()
+        resumen = verificar(crudo, validar_esquema=False).resumir()
+
+        assert len(json.dumps(resumen, ensure_ascii=False)) < len(crudo)
+        assert resumen["emisor"] == "CONTRIBUYENTE DE PRUEBA S.A."
+
+    def test_un_cdc_inventado_no_es_coherente(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # El último dígito del CDC es su verificador: cambiarlo lo delata sin
+        # necesidad de consultar nada.
+        adulterado = DOCUMENTO_CON_QR.format(cdc=CDC[:-1] + "0", qr="").encode()
+
+        resultado = verificar(adulterado, validar_esquema=False)
+
+        assert resultado.cdc_coherente is False
+        assert any("CDC" in o for o in resultado.observaciones)
+
+
+class TestCoherenciaDelQr:
+    """Un QR pegado de otro comprobante.
+
+    El ``cHashQR`` no se puede recalcular sin el Código de Seguridad del
+    Contribuyente, que sólo conocen el emisor y la DNIT. Pero los parámetros que
+    el QR publica sí se pueden contrastar con el documento, y eso ya alcanza
+    para detectar el copiado.
+    """
+
+    def test_un_qr_que_corresponde(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        assert verificar(_con_qr(), validar_esquema=False).qr_coherente is True
+
+    def test_un_qr_con_otro_total(self, verificar: Callable[..., Verificacion]) -> None:
+        resultado = verificar(
+            _con_qr(dTotGralOpe="99999.00000000"), validar_esquema=False
+        )
+
+        assert resultado.qr_coherente is False
+        assert resultado.confiable is False
+        assert any("el QR no corresponde" in o for o in resultado.observaciones)
+
+    def test_un_qr_de_otro_documento(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        otro = "01800140664044002007120322026082317377733681"
+        resultado = verificar(_con_qr(Id=otro), validar_esquema=False)
+
+        assert resultado.qr_coherente is False
+
+    def test_un_documento_sin_qr_no_se_juzga(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # Sin QR no hay nada que contrastar. Eso es None, no False: no se pudo
+        # comprobar es distinto de no cierra.
+        sin_qr = DOCUMENTO_CON_QR.format(cdc=CDC, qr="").replace(
+            "<dCarQR></dCarQR>", ""
+        )
+
+        assert verificar(sin_qr.encode(), validar_esquema=False).qr_coherente is None
+
+
+class TestRucDelCertificado:
+    """El documento tiene que estar firmado por el contribuyente que declara."""
+
+    def test_un_documento_firmado_por_otro_contribuyente(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # El certificado de prueba es del RUC 80012345-6. Este documento dice
+        # ser de otro: la firma cierra, pero no es de quien dice.
+        firmado = _documento_firmado(firmante).replace(
+            b"<dDVId>8</dDVId>",
+            b"<dDVId>8</dDVId><gDatGralOpe><gEmis><dRucEm>80099999</dRucEm>"
+            b"<dDVEmi>1</dDVEmi></gEmis></gDatGralOpe>",
+        )
+
+        resultado = verificar(firmado, validar_esquema=False)
+
+        assert resultado.ruc_coincide is False
+        assert resultado.confiable is False
+        assert any("RUC" in o for o in resultado.observaciones)
