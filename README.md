@@ -51,8 +51,8 @@ Verificar una factura que llegó por correo:
 from pysifen.lectura import verificar_documento
 
 resultado = verificar_documento(open("factura.xml", "rb").read())
-resultado.confiable   # True significa auténtico, no "parece bien"
-resultado.prestador   # "Documenta SA", según la Lista de Confianza del MIC
+resultado.confiable  # True significa auténtico, no "parece bien"
+resultado.prestador  # "Documenta SA", según la Lista de Confianza del MIC
 print(resultado.informe())
 ```
 

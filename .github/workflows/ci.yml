@@ -38,7 +38,7 @@ jobs:
           poetry check --lock
 
       - name: Instalar
-        run: poetry install --with dev --no-interaction
+        run: poetry install --with dev --all-extras --no-interaction
 
       - name: El modulo generado esta al dia con el esquema
         run: poetry run python scripts/generar_modelos.py --check
@@ -72,7 +72,9 @@ jobs:
           cache: poetry
 
       - name: Instalar
-        run: poetry install --with test --no-interaction
+        # Con los extras: el servidor MCP es parte de lo que se prueba, y
+        # sin ellos sus tests se saltean y la cobertura miente.
+        run: poetry install --with test --all-extras --no-interaction
 
       - name: Tests
         run: poetry run pytest -m "not red and not certificado" --cov-report=xml
