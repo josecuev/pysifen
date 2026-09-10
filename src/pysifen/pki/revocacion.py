@@ -66,6 +66,7 @@ from cryptography.x509.oid import (
 
 from pysifen.pki.cadena import ListaDeConfianza, _buscar_emisor, lista_de_confianza
 from pysifen.pki.certificado import Certificado
+from pysifen.tiempo import ahora, con_zona
 
 __all__ = [
     "TIEMPO_LIMITE",
@@ -173,7 +174,7 @@ def consultar_revocacion(
             ),
         )
 
-    instante = _con_zona(momento) if momento else datetime.now(UTC)
+    instante = con_zona(momento) if momento else ahora()
     problemas: list[str] = []
 
     for url in _direcciones_ocsp(certificado.x509):
@@ -203,11 +204,6 @@ def _emisor_de(
     """Busca en la lista de confianza la autoridad que firmó el certificado."""
     autoridad = _buscar_emisor(certificado.x509, lista or lista_de_confianza())
     return autoridad.certificado if autoridad else None
-
-
-def _con_zona(momento: datetime) -> datetime:
-    """Devuelve el instante con zona, asumiendo UTC si no la trae."""
-    return momento if momento.tzinfo else momento.replace(tzinfo=UTC)
 
 
 def _direcciones_ocsp(certificado: x509.Certificate) -> list[str]:

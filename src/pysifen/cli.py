@@ -1,8 +1,13 @@
 """Interfaz de línea de comandos.
 
-Sirve para dos cosas: operar (validar un documento, descomponer un CDC,
-verificar los esquemas) y **preguntarle a la librería por su propia
+Sirve para dos cosas: operar (verificar un documento recibido, validarlo contra
+el esquema, descomponer un CDC) y **preguntarle a la librería por su propia
 estructura**.
+
+Lo primero es el caso de todos los días::
+
+    pysifen verificar factura.xml              # ¿puedo confiar en esto?
+    pysifen verificar *.xml --revocacion       # y además consultar al prestador
 
 Lo segundo importa más de lo que parece. El documento electrónico tiene 49
 grupos y más de 400 campos, y nadie —persona o agente— se los sabe de memoria.
@@ -34,6 +39,7 @@ from pysifen import __version__
 from pysifen.cdc import Cdc
 from pysifen.documento import grupos_disponibles
 from pysifen.exceptions import SifenError
+from pysifen.lectura import leer_documentos
 from pysifen.validacion import URL_OFICIAL, validar_documento
 
 __all__ = ["main"]
@@ -116,6 +122,23 @@ def _validar(opciones: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _verificar(opciones: argparse.Namespace) -> dict[str, Any]:
+    """Verifica documentos recibidos: firma, cadena, vigencia, CDC, QR."""
+    rutas = [Path(r) for r in opciones.archivos]
+    for ruta in rutas:
+        if not ruta.is_file():
+            raise SifenError(f"no encontré el archivo {ruta}")
+    informes = leer_documentos(rutas, revocacion=opciones.revocacion)
+    confiables = sum(1 for i in informes if i.confiable)
+    return {
+        "documentos": [i.resumir() for i in informes],
+        "total": len(informes),
+        "confiables": confiables,
+        "con_reparos": len(informes) - confiables,
+        "texto": [i.informe() for i in informes],
+    }
+
+
 def _cdc(opciones: argparse.Namespace) -> dict[str, Any]:
     """Descompone un Código de Control en sus partes."""
     codigo = Cdc.parse(opciones.codigo)
@@ -154,7 +177,21 @@ def _esquemas(_: argparse.Namespace) -> dict[str, Any]:
 def _imprimir(datos: dict[str, Any], *, como_json: bool) -> None:
     """Muestra el resultado, en JSON o en texto para leer."""
     if como_json:
-        print(json.dumps(datos, indent=2, ensure_ascii=False))
+        # El texto legible es para la consola; en JSON ya va el resumen.
+        print(
+            json.dumps(
+                {k: v for k, v in datos.items() if k != "texto"},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    if "texto" in datos and isinstance(datos["texto"], list):
+        print("\n\n".join(datos["texto"]))
+        print(
+            f"\n{datos['confiables']} confiable(s), {datos['con_reparos']} con reparos"
+        )
         return
 
     if "grupos" in datos and isinstance(datos["grupos"], list):
@@ -229,6 +266,21 @@ def construir_analizador() -> argparse.ArgumentParser:
     buscar.add_argument("texto", help="nombre del campo o parte de su descripción")
     buscar.set_defaults(funcion=_buscar)
 
+    verificar = comandos.add_parser(
+        "verificar",
+        help="verifica documentos recibidos: firma, cadena, vigencia, CDC y QR",
+    )
+    verificar.add_argument("archivos", nargs="+", help="documentos o lotes .xml")
+    verificar.add_argument(
+        "--revocacion",
+        action="store_true",
+        help=(
+            "consultar al prestador que el certificado no esté revocado. Es lo "
+            "único que sale a la red, por eso hay que pedirlo"
+        ),
+    )
+    verificar.set_defaults(funcion=_verificar)
+
     validar = comandos.add_parser(
         "validar", help="valida un XML contra el esquema oficial"
     )
@@ -254,7 +306,8 @@ def main(argumentos: list[str] | None = None) -> int:
 
     Returns:
         ``0`` si todo salió bien, ``1`` si hubo un problema de negocio, ``2``
-        si el documento validado resultó inválido.
+        si el documento validado resultó inválido, ``3`` si algún documento
+        verificado no resultó confiable. Así sirve en un script.
     """
     opciones = construir_analizador().parse_args(argumentos)
     try:
@@ -263,10 +316,17 @@ def main(argumentos: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
+    if opciones.json and hasattr(sys.stdout, "reconfigure"):
+        # JSON es UTF-8 por definición (RFC 8259). En Windows la salida
+        # redirigida usa la codificación de la consola, y quien lea el archivo
+        # se encontraría con bytes que no son UTF-8 en la primera "ó".
+        sys.stdout.reconfigure(encoding="utf-8")
     _imprimir(datos, como_json=opciones.json)
 
     if datos.get("valido") is False:
         return 2
+    if datos.get("con_reparos", 0) > 0:
+        return 3
     return 0
 
 

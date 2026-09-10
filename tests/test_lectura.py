@@ -19,18 +19,29 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
+from pysifen.cdc import Cdc
 from pysifen.documento import (
     DocumentoElectronico,
     Operacion,
     Timbrado,
     sobre_rde,
 )
-from pysifen.lectura import Verificacion, leer_documentos, verificar_documento
+from pysifen.enums import TipoContribuyente, TipoDocumento, TipoEmision
+from pysifen.lectura import (
+    Verificacion,
+    leer_documentos,
+    verificar_documento,
+    verificar_lote,
+)
 from pysifen.pki.cadena import ListaDeConfianza
 from pysifen.signing import firmar_documento
 from pysifen.signing.backends.pkcs12 import FirmantePkcs12
 from pysifen.signing.verificacion import verificar_firma
-from tests.conftest import construir_certificado, construir_pkcs12
+from tests.conftest import (
+    construir_certificado,
+    construir_pkcs12,
+    jerarquia_de_prueba,
+)
 
 CDC = "01444444017001001001452822017012515873260988"
 
@@ -365,11 +376,24 @@ class TestInformeLegible:
 #: Se arma como texto y no con los modelos porque lo que se prueba es la
 #: LECTURA: hace falta poder desalinear el QR del documento a mano, que es
 #: justo lo que los modelos impiden.
+#: Un CDC que describe al documento de abajo: mismo RUC, misma fecha.
+CDC_COHERENTE = Cdc.crear(
+    tipo_documento=TipoDocumento.FACTURA,
+    ruc_emisor="80012345-6",
+    establecimiento="001",
+    punto_expedicion="001",
+    numero="0000001",
+    tipo_contribuyente=TipoContribuyente.PERSONA_JURIDICA,
+    fecha_emision=date(2026, 9, 10),
+    codigo_seguridad="587326098",
+).valor
+DV_COHERENTE = CDC_COHERENTE[-1]
+
 DOCUMENTO_CON_QR = """<?xml version="1.0" encoding="UTF-8"?>
 <rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd">
   <dVerFor>150</dVerFor>
   <DE Id="{cdc}">
-    <dDVId>8</dDVId>
+    <dDVId>{dv}</dDVId>
     <dFecFirma>2026-09-10T10:00:00</dFecFirma>
     <dSisFact>1</dSisFact>
     <gTimb><iTiDE>1</iTiDE></gTimb>
@@ -401,13 +425,15 @@ QR_COHERENTE = (
 
 def _con_qr(**cambios: str) -> bytes:
     """Arma el documento de arriba, con el QR alterado si se pide."""
-    qr = QR_COHERENTE.format(cdc=CDC)
+    qr = QR_COHERENTE.format(cdc=CDC_COHERENTE)
     for clave, valor in cambios.items():
         viejo = f"{clave}=" + qr.split(f"{clave}=")[1].split("&")[0]
         qr = qr.replace(viejo, f"{clave}={valor}")
     # El QR va dentro de un elemento XML: sus "&" tienen que ir escapados, tal
     # como los escribe un emisor real.
-    return DOCUMENTO_CON_QR.format(cdc=CDC, qr=qr.replace("&", "&amp;")).encode()
+    return DOCUMENTO_CON_QR.format(
+        cdc=CDC_COHERENTE, dv=DV_COHERENTE, qr=qr.replace("&", "&amp;")
+    ).encode()
 
 
 class TestDatosDelDocumento:
@@ -418,7 +444,7 @@ class TestDatosDelDocumento:
     ) -> None:
         resultado = verificar(_con_qr(), validar_esquema=False)
 
-        assert resultado.cdc == CDC
+        assert resultado.cdc == CDC_COHERENTE
         assert resultado.ruc_emisor == "80012345-6"
         assert resultado.razon_social_emisor == "CONTRIBUYENTE DE PRUEBA S.A."
         assert resultado.total == "36500.00000000"
@@ -441,7 +467,11 @@ class TestDatosDelDocumento:
     ) -> None:
         # El último dígito del CDC es su verificador: cambiarlo lo delata sin
         # necesidad de consultar nada.
-        adulterado = DOCUMENTO_CON_QR.format(cdc=CDC[:-1] + "0", qr="").encode()
+        adulterado = DOCUMENTO_CON_QR.format(
+            cdc=CDC_COHERENTE[:-1] + str((int(DV_COHERENTE) + 1) % 10),
+            dv=DV_COHERENTE,
+            qr="",
+        ).encode()
 
         resultado = verificar(adulterado, validar_esquema=False)
 
@@ -485,9 +515,9 @@ class TestCoherenciaDelQr:
     ) -> None:
         # Sin QR no hay nada que contrastar. Eso es None, no False: no se pudo
         # comprobar es distinto de no cierra.
-        sin_qr = DOCUMENTO_CON_QR.format(cdc=CDC, qr="").replace(
-            "<dCarQR></dCarQR>", ""
-        )
+        sin_qr = DOCUMENTO_CON_QR.format(
+            cdc=CDC_COHERENTE, dv=DV_COHERENTE, qr=""
+        ).replace("<dCarQR></dCarQR>", "")
 
         assert verificar(sin_qr.encode(), validar_esquema=False).qr_coherente is None
 
@@ -614,3 +644,247 @@ class TestRevocacion:
 
         assert informes[0].revocacion is not None
         assert informes[0].revocacion.estado is EstadoDeRevocacion.VIGENTE
+
+
+#: Un documento cuyo CDC describe exactamente lo que el documento declara.
+#:
+#: Se arma el CDC desde los mismos campos, asi que "coherente" acá significa
+#: que las diez partes del código coinciden con el documento, no sólo que el
+#: dígito verificador cierre.
+DOCUMENTO_COHERENTE = """<?xml version="1.0" encoding="UTF-8"?>
+<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd">
+  <dVerFor>{version}</dVerFor>
+  <DE Id="{cdc}">
+    <dDVId>{dv}</dDVId>
+    <dFecFirma>2026-09-10T10:00:00</dFecFirma>
+    <dSisFact>1</dSisFact>
+    <gOpeDE><iTipEmi>1</iTipEmi><dCodSeg>587326098</dCodSeg></gOpeDE>
+    <gTimb>
+      <iTiDE>1</iTiDE><dNumTim>12558946</dNumTim>
+      <dEst>001</dEst><dPunExp>001</dPunExp><dNumDoc>{numero}</dNumDoc>
+      <dFeIniT>{inicio_timbrado}</dFeIniT>
+    </gTimb>
+    <gDatGralOpe>
+      <dFeEmiDE>2026-09-10T09:55:00</dFeEmiDE>
+      <gEmis>
+        <dRucEm>80012345</dRucEm><dDVEmi>6</dDVEmi><iTipCont>2</iTipCont>
+        <dNomEmi>CONTRIBUYENTE DE PRUEBA S.A.</dNomEmi>
+      </gEmis>
+    </gDatGralOpe>
+  </DE>
+</rDE>
+"""
+
+
+def _coherente(
+    *,
+    version: str = "150",
+    numero: str = "0014528",
+    inicio_timbrado: str = "2026-01-01",
+    dv: int | None = None,
+) -> bytes:
+    """Arma el documento con su CDC calculado desde sus propios campos."""
+    cdc = Cdc.crear(
+        tipo_documento=TipoDocumento.FACTURA,
+        ruc_emisor="80012345-6",
+        establecimiento="001",
+        punto_expedicion="001",
+        numero="0014528",
+        tipo_contribuyente=TipoContribuyente.PERSONA_JURIDICA,
+        fecha_emision=date(2026, 9, 10),
+        tipo_emision=TipoEmision.NORMAL,
+        codigo_seguridad="587326098",
+    )
+    return DOCUMENTO_COHERENTE.format(
+        version=version,
+        cdc=cdc.valor,
+        dv=cdc.dv if dv is None else dv,
+        numero=numero,
+        inicio_timbrado=inicio_timbrado,
+    ).encode()
+
+
+class TestElCdcDescribeAlDocumento:
+    """No alcanza con que el dígito verificador cierre."""
+
+    def test_un_cdc_que_describe_al_documento(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resultado = verificar(_coherente(), validar_esquema=False)
+
+        assert resultado.cdc_coherente is True
+
+    def test_un_cdc_bien_calculado_para_otro_documento(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # El CDC es válido -su dígito cierra- pero habla de otro número de
+        # documento. Antes esto pasaba como coherente.
+        resultado = verificar(_coherente(numero="0014529"), validar_esquema=False)
+
+        assert resultado.cdc_coherente is False
+        assert resultado.confiable is False
+        assert any(
+            "el CDC no corresponde al documento" in o and "número" in o
+            for o in resultado.observaciones
+        )
+
+    def test_el_digito_que_el_documento_repite_tiene_que_ser_el_del_cdc(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # dDVId es el dígito verificador del CDC, repetido como campo.
+        cdc = Cdc.parse(_coherente().decode().split('Id="')[1][:44])
+        otro = (cdc.dv + 1) % 10
+        resultado = verificar(_coherente(dv=otro), validar_esquema=False)
+
+        assert resultado.cdc_coherente is False
+        assert any("dígito verificador" in o for o in resultado.observaciones)
+
+
+class TestElTimbradoRigeAlEmitir:
+    def test_un_timbrado_que_ya_regia(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resultado = verificar(_coherente(), validar_esquema=False)
+
+        assert resultado.timbrado_vigente_a_la_emision is True
+
+    def test_un_documento_emitido_antes_de_que_rija_su_timbrado(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        resultado = verificar(
+            _coherente(inicio_timbrado="2026-10-01"), validar_esquema=False
+        )
+
+        assert resultado.timbrado_vigente_a_la_emision is False
+        assert resultado.confiable is False
+        assert any("timbrado" in o for o in resultado.observaciones)
+
+
+class TestLaVersionDelFormato:
+    def test_la_version_conocida(self, verificar: Callable[..., Verificacion]) -> None:
+        resultado = verificar(_coherente(), validar_esquema=False)
+
+        assert resultado.version_del_formato == "150"
+        assert resultado.formato_admitido is True
+        assert resultado.resumir()["verificacion"]["formato"] is True
+
+    def test_una_version_que_no_se_conoce_se_dice(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # Cuando salga el formato 160, un documento nuevo tiene que decir "no
+        # puedo verificar esto", no fallar con un error críptico de esquema.
+        resultado = verificar(_coherente(version="160"), validar_esquema=False)
+
+        assert resultado.formato_admitido is False
+        assert resultado.confiable is False
+        assert any("formato 160" in o for o in resultado.observaciones)
+
+
+class TestLaHoraEsLaDeAsuncion:
+    """Las fechas del documento vienen sin zona, y son hora del Paraguay."""
+
+    def test_una_firma_de_la_noche_se_evalua_en_hora_local(
+        self, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # El certificado rige desde la 01:00 UTC del día 11, que son las 22:00
+        # del día 10 en Asunción. Un documento firmado a las 23:00 del 10 en
+        # hora local está DENTRO de la vigencia. Leído como UTC, no lo estaría:
+        # sería una hora antes de que el certificado empiece a regir.
+        from datetime import UTC
+
+        from pysifen.security.secretos import Secreto
+
+        _, intermedia = jerarquia_de_prueba()
+        cert = construir_certificado(
+            ruc_en_subject="RUC80012345-6",
+            firmada_por=intermedia,
+            valido_desde=datetime(2026, 9, 11, 1, 0, tzinfo=UTC),
+            valido_hasta=datetime(2027, 9, 11, 1, 0, tzinfo=UTC),
+        )
+        with pytest.warns(UserWarning, match="custodia"):
+            firmante = FirmantePkcs12.desde_bytes(
+                construir_pkcs12(cert),
+                Secreto("prueba"),
+                permitir_clave_en_memoria=True,
+            )
+        firmado = _documento_firmado(firmante).replace(
+            b"<dFecFirma>2026-09-10T10:00:00</dFecFirma>",
+            b"<dFecFirma>2026-09-10T23:00:00</dFecFirma>",
+        )
+
+        resultado = verificar(firmado, validar_esquema=False)
+
+        assert resultado.certificado_vigente_a_la_firma is True
+
+
+class TestLotes:
+    def test_verificar_lote_informa_cada_documento(
+        self, firmante: FirmantePkcs12, anclas_de_prueba: ListaDeConfianza
+    ) -> None:
+        lote = etree.Element("rLoteDE")
+        for _ in range(3):
+            lote.append(etree.fromstring(_documento_firmado(firmante)))
+
+        informes = verificar_lote(lote, lista=anclas_de_prueba, validar_esquema=False)
+
+        assert len(informes) == 3
+        assert all(i.firma_valida for i in informes)
+        assert not any(
+            "se verificó el primero" in o for i in informes for o in i.observaciones
+        )
+
+    def test_leer_documentos_expande_los_lotes(
+        self,
+        firmante: FirmantePkcs12,
+        anclas_de_prueba: ListaDeConfianza,
+        tmp_path: Path,
+    ) -> None:
+        lote = etree.Element("rLoteDE")
+        for _ in range(2):
+            lote.append(etree.fromstring(_documento_firmado(firmante)))
+        (tmp_path / "lote.xml").write_bytes(etree.tostring(lote))
+        (tmp_path / "suelto.xml").write_bytes(_documento_firmado(firmante))
+
+        informes = leer_documentos(
+            [tmp_path / "lote.xml", tmp_path / "suelto.xml"], lista=anclas_de_prueba
+        )
+
+        assert len(informes) == 3
+
+    def test_un_lote_vacio(self) -> None:
+        informes = verificar_lote(b"<rLoteDE/>")
+
+        assert len(informes) == 1
+        assert informes[0].confiable is False
+
+
+class TestAlgoritmosDeLaFirma:
+    """El manual exige SHA-256 y RSA: otro algoritmo no es un documento del SIFEN."""
+
+    def test_un_resumen_con_otro_algoritmo_se_dice_por_su_nombre(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        firmado = _documento_firmado(firmante).replace(
+            b"http://www.w3.org/2001/04/xmlenc#sha256",
+            b"http://www.w3.org/2000/09/xmldsig#sha1",
+        )
+
+        resultado = verificar(firmado, validar_esquema=False)
+
+        assert resultado.firma_valida is False
+        assert any("SHA-256" in o for o in resultado.observaciones)
+        # Y no se lo acusa de alterado, que sería mentir sobre la causa.
+        assert not any("alterado" in o for o in resultado.observaciones)
+
+    def test_una_firma_con_otro_algoritmo(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        firmado = _documento_firmado(firmante).replace(
+            b"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+            b"http://www.w3.org/2000/09/xmldsig#rsa-sha1",
+        )
+
+        resultado = verificar(firmado, validar_esquema=False)
+
+        assert resultado.firma_valida is False
+        assert any("RSA con SHA-256" in o for o in resultado.observaciones)

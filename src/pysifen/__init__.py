@@ -60,7 +60,12 @@ from pysifen.exceptions import (
     SifenError,
     ValidacionError,
 )
-from pysifen.lectura import Verificacion, leer_documentos, verificar_documento
+from pysifen.lectura import (
+    Verificacion,
+    leer_documentos,
+    verificar_documento,
+    verificar_lote,
+)
 from pysifen.pki.cadena import ListaDeConfianza, lista_de_confianza, validar_cadena
 from pysifen.pki.certificado import Certificado
 from pysifen.pki.revocacion import (
@@ -113,4 +118,5 @@ __all__ = [
     "validar_documento",
     "validar_evento",
     "verificar_documento",
+    "verificar_lote",
 ]

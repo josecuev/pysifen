@@ -144,6 +144,22 @@ class TestVerificar:
         assert datos["total"] == 1
         assert datos["confiables"] == 0
 
+    @pytest.mark.anyio
+    async def test_un_archivo_con_un_lote_informa_cada_documento(
+        self, servidor: Any, tmp_path: Path
+    ) -> None:
+        # Un rLoteDE con dos documentos son dos informes, no uno.
+        archivo = tmp_path / "lote.xml"
+        archivo.write_text(
+            "<rLoteDE>"
+            '<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd"><dVerFor>150</dVerFor></rDE>'
+            '<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd"><dVerFor>150</dVerFor></rDE>'
+            "</rLoteDE>",
+            encoding="utf-8",
+        )
+        datos = await _llamar(servidor, "verificar_facturas", {"rutas": [str(archivo)]})
+        assert datos["total"] == 2
+
 
 class TestRespuestasSerializables:
     @pytest.mark.anyio

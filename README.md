@@ -117,13 +117,17 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 La librería se describe a sí misma, así que no hace falta saberse el manual:
 
 ```bash
-pysifen buscar dTotGralOpe    # ¿en qué grupo vive este campo?
-pysifen grupo CamItem         # ¿qué campos tiene? ¿cuáles obligatorios?
-pysifen validar factura.xml   # ¿lo acepta el esquema oficial?
-pysifen cdc 0144444401700...  # descompone un Código de Control
+pysifen verificar factura.xml            # ¿puedo confiar en esto?
+pysifen verificar *.xml --revocacion     # y consultar al prestador, en lote
+pysifen validar factura.xml              # ¿lo acepta el esquema oficial?
+pysifen cdc 0144444401700...             # descompone un Código de Control
+pysifen buscar dTotGralOpe               # ¿en qué grupo vive este campo?
+pysifen grupo CamItem                    # ¿qué campos tiene? ¿cuáles obligatorios?
 ```
 
 Todos los comandos aceptan `--json`, para consumirlos desde otro programa.
+`verificar` devuelve `3` si algún documento no resultó confiable, así que sirve
+en un script.
 
 ## Principios
 

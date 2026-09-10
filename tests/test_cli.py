@@ -143,3 +143,65 @@ class TestSalidaParaLeer:
     ) -> None:
         assert main(argumentos) == 0
         assert capsys.readouterr().out.strip()
+
+
+class TestVerificar:
+    """El caso de todos los días: ¿puedo confiar en este archivo?"""
+
+    def test_verifica_y_devuelve_3_si_algo_no_es_confiable(
+        self, firmante: Any, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from tests.test_lectura import _documento_firmado
+
+        archivo = tmp_path / "factura.xml"
+        archivo.write_bytes(_documento_firmado(firmante))
+
+        # Contra la lista de confianza real un certificado de prueba no
+        # encadena, así que el documento no es confiable: código 3.
+        assert main(["--json", "verificar", str(archivo)]) == 3
+        datos = _json(capsys)
+        assert datos["total"] == 1
+        assert datos["con_reparos"] == 1
+        assert datos["documentos"][0]["confiable"] is False
+        assert "texto" not in datos
+
+    def test_en_texto_imprime_el_informe(
+        self, firmante: Any, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from tests.test_lectura import _documento_firmado
+
+        archivo = tmp_path / "factura.xml"
+        archivo.write_bytes(_documento_firmado(firmante))
+
+        main(["verificar", str(archivo)])
+
+        salida = capsys.readouterr().out
+        assert "CON REPAROS" in salida
+        assert "con reparos" in salida
+
+    def test_un_archivo_que_no_existe(self, tmp_path: Path) -> None:
+        assert main(["verificar", str(tmp_path / "no.xml")]) == 1
+
+    def test_la_revocacion_se_pide_con_una_bandera(
+        self,
+        firmante: Any,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from pysifen.pki.revocacion import EstadoDeRevocacion, ResultadoDeRevocacion
+        from tests.test_lectura import _documento_firmado
+
+        monkeypatch.setattr(
+            "pysifen.lectura.consultar_revocacion",
+            lambda *a, **k: ResultadoDeRevocacion(
+                EstadoDeRevocacion.VIGENTE, fuente="OCSP"
+            ),
+        )
+        archivo = tmp_path / "factura.xml"
+        archivo.write_bytes(_documento_firmado(firmante))
+
+        main(["--json", "verificar", str(archivo), "--revocacion"])
+
+        datos = _json(capsys)
+        assert datos["documentos"][0]["verificacion"]["revocacion"] == "vigente"

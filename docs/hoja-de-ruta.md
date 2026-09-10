@@ -126,8 +126,9 @@ DOCUMENTA y de ITTI: los cuatro vigentes, en 2,1 segundos para el lote.
 - [x] 0.4.0 — firmas reales explicadas.
 - [x] 0.5.0 — lectura completa a modelos.
 - [x] 0.6.0 — revocación.
-- [x] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
-      firma, revocación, coherencia de CDC y QR.
+- [x] Verificación completa: versión del formato, esquema, firma, cadena de
+      confianza, vigencia a la firma, revocación, timbrado vigente al emitir,
+      CDC contrastado parte por parte con el documento, y QR.
 - [ ] Documentos reales de emisores distintos verificados correctamente.
 - [x] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
       pasaron". Con `revocacion=True` el resumen ya no declara **ningún**
@@ -138,6 +139,24 @@ DOCUMENTA y de ITTI: los cuatro vigentes, en 2,1 segundos para el lote.
 
 A partir de acá, un cambio incompatible en la API de lectura obliga a subir la
 versión mayor.
+
+Antes de cerrarla se hizo una auditoría con la pregunta "¿qué falta de
+verdad?", y aparecieron cosas que ningún criterio de la lista pedía y que sin
+embargo faltaban:
+
+- `TipoDocumento` seguía la tabla del manual y no el esquema: rechazaba las
+  boletas de venta (9 y 10), que el esquema admite, y aceptaba códigos que el
+  esquema tiene comentados. Una boleta legítima daba "CDC fuera de tabla".
+- El CDC sólo se comprobaba contra sí mismo. Ahora se contrasta parte por
+  parte con lo que el documento declara, incluido el dígito que repite en
+  `dDVId`.
+- Las horas sin zona se leían como UTC. Son hora de Asunción, y tres horas
+  deciden de qué lado de una medianoche cae una firma.
+- No se comprobaba que el timbrado rigiera al emitir, ni la versión del
+  formato, ni que la firma usara los algoritmos que el manual exige.
+- La línea de comandos no tenía `verificar`: lo que la 1.0 promete no se
+  podía hacer desde la consola.
+- Un archivo con un lote de varios documentos sólo verificaba el primero.
 
 Qué **no** cubre la promesa: armar y firmar documentos propios. Funciona y está
 probado, pero se cierra en la 2.0.0, cuando haya un documento aceptado por el

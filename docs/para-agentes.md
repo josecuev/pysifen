@@ -8,7 +8,14 @@ Si sos una persona, también sirve: son las mismas trampas.
 
 ## Si lo que tenés que hacer es *leer* un documento
 
-Empezá por acá, porque es el caso frecuente y se resuelve en una línea:
+Empezá por acá, porque es el caso frecuente y se resuelve en una línea. Desde
+la consola:
+
+```bash
+pysifen verificar factura.xml --json      # código 3 si algo no es confiable
+```
+
+Desde Python:
 
 ```python
 from pysifen.lectura import verificar_documento
@@ -20,10 +27,11 @@ resultado.resumir()  # dict compacto, serializable, listo para razonar sobre él
 
 Tres cosas que conviene saber antes de usar el resultado:
 
-1. **`confiable` significa auténtico**, no "parece bien". Exige esquema, firma,
-   cadena de confianza hasta la Autoridad Certificadora Raíz del Paraguay,
-   vigencia a la firma, RUC, CDC y QR. Cualquier comprobación que no se pueda
-   hacer cuenta como fallada.
+1. **`confiable` significa auténtico**, no "parece bien". Exige la versión de
+   formato conocida, esquema, firma, cadena de confianza hasta la Autoridad
+   Certificadora Raíz del Paraguay, vigencia a la firma, RUC, timbrado vigente
+   al emitir, un CDC que describa a *este* documento parte por parte, y QR.
+   Cualquier comprobación que no se pueda hacer cuenta como fallada.
 2. **`resumir()` declara su propio límite**, en `limite_de_la_verificacion`.
    Leelo y pasalo adelante: si informás un veredicto sin su límite, estás
    afirmando más de lo que se comprobó. Cuando la clave **no aparece**, es

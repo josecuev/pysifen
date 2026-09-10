@@ -39,37 +39,39 @@ class Ambiente(IntEnum):
 class TipoDocumento(IntEnum):
     """Tipo de documento electrónico. Campo ``iTiDE`` (C002).
 
-    El código ``8`` (Comprobante de retención electrónico) figura en el manual
-    marcado como *futuro* y todavía no está operativo en SIFEN.
+    Los valores son los que admite el esquema oficial (``tiTiDE``, patrón
+    ``1|[4-7]|9|10``), no los de la tabla del manual. La tabla del manual lista
+    además el 2, el 3 y el 8 —factura de exportación, de importación y
+    comprobante de retención— pero el esquema los tiene **comentados**: un
+    documento con esos códigos no lo acepta el SIFEN, y un CDC que empiece con
+    ellos no describe a ningún documento real.
+
+    A la inversa, el 9 y el 10 —las boletas de venta— no figuran en la tabla
+    del manual v150 y sí en el esquema. Un lector que se guiara por la tabla
+    rechazaría una boleta legítima. Cuando el manual y el esquema no coinciden,
+    manda el esquema: ver la decisión 0003.
     """
 
     FACTURA = 1
-    FACTURA_EXPORTACION = 2
-    FACTURA_IMPORTACION = 3
     AUTOFACTURA = 4
     NOTA_CREDITO = 5
     NOTA_DEBITO = 6
     NOTA_REMISION = 7
-    COMPROBANTE_RETENCION = 8
+    BOLETA_VENTA = 9
+    BOLETA_RESIMPLE = 10
 
     @property
     def descripcion(self) -> str:
-        """Texto normado para el campo ``dDesTiDE`` (C003)."""
+        """Texto normado para el campo ``dDesTiDE`` (C003), tal cual el esquema."""
         return {
             TipoDocumento.FACTURA: "Factura electrónica",
-            TipoDocumento.FACTURA_EXPORTACION: "Factura electrónica de exportación",
-            TipoDocumento.FACTURA_IMPORTACION: "Factura electrónica de importación",
             TipoDocumento.AUTOFACTURA: "Autofactura electrónica",
             TipoDocumento.NOTA_CREDITO: "Nota de crédito electrónica",
             TipoDocumento.NOTA_DEBITO: "Nota de débito electrónica",
             TipoDocumento.NOTA_REMISION: "Nota de remisión electrónica",
-            TipoDocumento.COMPROBANTE_RETENCION: "Comprobante de retención electrónico",
+            TipoDocumento.BOLETA_VENTA: "Boleta de venta electrónica",
+            TipoDocumento.BOLETA_RESIMPLE: "Boleta resimple electrónica",
         }[self]
-
-    @property
-    def operativo(self) -> bool:
-        """``False`` para los tipos que el manual marca como futuros."""
-        return self is not TipoDocumento.COMPROBANTE_RETENCION
 
 
 class TipoEmision(IntEnum):

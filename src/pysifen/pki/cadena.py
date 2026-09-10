@@ -55,7 +55,7 @@ import base64
 import binascii
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Final
@@ -66,6 +66,7 @@ from lxml import etree
 
 from pysifen.exceptions import PkiError
 from pysifen.pki.certificado import Certificado
+from pysifen.tiempo import ahora, con_zona
 
 __all__ = [
     "ARCHIVO_DE_LA_LISTA",
@@ -305,9 +306,7 @@ def validar_cadena(
         (True, 'Documenta SA')
     """
     anclas = lista or lista_de_confianza()
-    instante = momento or datetime.now(UTC)
-    if instante.tzinfo is None:
-        instante = instante.replace(tzinfo=UTC)
+    instante = con_zona(momento) if momento else ahora()
 
     cadena = [_nombre(certificado.x509.subject)]
     actual = certificado.x509

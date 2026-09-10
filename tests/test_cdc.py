@@ -178,3 +178,38 @@ class TestPresentacion:
         cdc = Cdc.parse(CDC_DEL_MANUAL)
         with pytest.raises((AttributeError, TypeError)):
             cdc.numero = "0000001"  # type: ignore[misc]
+
+
+class TestLosTiposSonLosDelEsquema:
+    """El esquema manda: admite 1, 4-7, 9 y 10, y no 2, 3 ni 8."""
+
+    def test_una_boleta_de_venta_se_lee(self) -> None:
+        # El manual v150 no la lista; el esquema sí. Un lector que se guiara
+        # por la tabla del manual rechazaría una boleta legítima.
+        from pysifen.cdc import Cdc, calcular_dv_mod11
+        from pysifen.enums import TipoDocumento
+
+        for codigo, tipo in (
+            (9, TipoDocumento.BOLETA_VENTA),
+            (10, TipoDocumento.BOLETA_RESIMPLE),
+        ):
+            base = f"{codigo:02d}44444401700100100145282201701251587326098"
+            cdc = Cdc.parse(base + str(calcular_dv_mod11(base)))
+            assert cdc.tipo_documento is tipo
+
+    def test_los_codigos_comentados_en_el_esquema_se_rechazan(self) -> None:
+        from pysifen.cdc import Cdc, calcular_dv_mod11
+        from pysifen.exceptions import CdcError
+
+        for codigo in (2, 3, 8):
+            base = f"{codigo:02d}44444401700100100145282201701251587326098"
+            with pytest.raises(CdcError, match="fuera de tabla"):
+                Cdc.parse(base + str(calcular_dv_mod11(base)))
+
+    def test_las_descripciones_son_las_del_esquema(self) -> None:
+        from pysifen.enums import TipoDocumento
+
+        assert TipoDocumento.BOLETA_VENTA.descripcion == "Boleta de venta electrónica"
+        assert (
+            TipoDocumento.BOLETA_RESIMPLE.descripcion == "Boleta resimple electrónica"
+        )

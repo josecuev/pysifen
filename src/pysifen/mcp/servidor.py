@@ -47,7 +47,7 @@ from pysifen import __version__
 from pysifen.cdc import Cdc
 from pysifen.documento import grupos_disponibles
 from pysifen.exceptions import SifenError
-from pysifen.lectura import verificar_documento
+from pysifen.lectura import verificar_documento, verificar_lote
 from pysifen.pki.cadena import lista_de_confianza
 from pysifen.validacion import esquema_de_documento
 
@@ -187,8 +187,9 @@ def construir_servidor() -> Any:
             except SifenError as error:
                 informes.append({"ruta": ruta, "ok": False, "error": str(error)})
                 continue
-            resultado = verificar_documento(crudo, lista=anclas, revocacion=revocacion)
-            informes.append({"ruta": ruta} | resultado.resumir())
+            # Un archivo puede ser un lote: se informa cada documento que traiga.
+            for resultado in verificar_lote(crudo, lista=anclas, revocacion=revocacion):
+                informes.append({"ruta": ruta} | resultado.resumir())
 
         confiables = sum(1 for i in informes if i.get("confiable"))
         return {

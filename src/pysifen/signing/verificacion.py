@@ -59,7 +59,12 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from lxml import etree
 
 from pysifen.pki.certificado import Certificado
-from pysifen.signing.xmldsig import C14N_EXCLUSIVO, NS_XMLDSIG
+from pysifen.signing.xmldsig import (
+    ALGORITMO_DIGEST,
+    ALGORITMO_FIRMA,
+    C14N_EXCLUSIVO,
+    NS_XMLDSIG,
+)
 
 __all__ = [
     "TOLERANCIA_ESPACIOS_DE_NOMBRES",
@@ -247,6 +252,17 @@ def _comprobar_resumen(
             f"no encontré el elemento con Id={identificador!r} que la firma referencia",
         )
 
+    metodo = referencia.find(_ds("DigestMethod"))
+    algoritmo = metodo.get("Algorithm") if metodo is not None else None
+    if algoritmo != ALGORITMO_DIGEST:
+        # No se recalcula con otro algoritmo: el manual exige SHA-256 y un
+        # documento con otro no es un documento del SIFEN. Decirlo es mejor
+        # que fallar con "alterado", que seria mentir sobre la causa.
+        return None, (
+            f"el resumen usa {algoritmo or 'un algoritmo no declarado'} y el "
+            "SIFEN exige SHA-256"
+        )
+
     exclusiva = any(
         t.get("Algorithm") == C14N_EXCLUSIVO for t in referencia.iter(_ds("Transform"))
     )
@@ -295,6 +311,14 @@ def _comprobar_firma(
     """Verifica la firma del ``SignedInfo`` con la clave del certificado."""
     if certificado is None:
         return None, "el documento no trae un certificado legible en su KeyInfo"
+
+    metodo_firma = info.find(_ds("SignatureMethod"))
+    algoritmo = metodo_firma.get("Algorithm") if metodo_firma is not None else None
+    if algoritmo != ALGORITMO_FIRMA:
+        return None, (
+            f"la firma usa {algoritmo or 'un algoritmo no declarado'} y el SIFEN "
+            "exige RSA con SHA-256"
+        )
 
     metodo = info.find(_ds("CanonicalizationMethod"))
     exclusiva = metodo is not None and metodo.get("Algorithm") == C14N_EXCLUSIVO

@@ -117,12 +117,14 @@ tributario en XML ocupa unos 10 KB; esto suele quedar en menos de 500 bytes:
   "ruc_emisor": "80014066-4",
   "total": "36500.00000000",
   "verificacion": {
+    "formato": true,
     "esquema": true,
     "firma": true,
     "prestador": "Documenta SA",
     "cadena_de_confianza": true,
     "certificado_vigente_al_firmar": true,
     "ruc_coincide_con_el_certificado": true,
+    "timbrado_vigente_al_emitir": true,
     "cdc_coherente": true,
     "qr_coherente": true,
     "revocacion": "no consultada"
@@ -145,13 +147,21 @@ pueda comprobar cuenta como que no pasó:
 
 | Comprobación | Qué prueba |
 |---|---|
+| Versión del formato | Que el documento es de la versión que la librería conoce (150). Una versión nueva se declara, no se adivina |
 | Esquema | Que el documento tiene la estructura oficial |
 | Firma | Que **ni un carácter** cambió desde que se firmó |
 | Cadena de confianza | Que el certificado lo emitió de verdad un prestador cualificado habilitado, hasta la Autoridad Certificadora Raíz del Paraguay |
 | Revocación (a pedido) | Que el prestador no lo haya dado de baja |
 | Vigencia a la firma | Que el certificado estaba vigente *cuando se firmó*, no hoy |
 | RUC | Que el documento no lo firmó otro contribuyente |
-| CDC y QR | Que el código de control y el QR corresponden al documento |
+| Timbrado | Que el timbrado ya regía cuando se emitió el documento |
+| CDC | Que el Código de Control **describe a este documento**: tipo, RUC, establecimiento, punto, número, fecha, código de seguridad y dígito verificador, parte por parte. Un CDC bien calculado para otro documento es incoherente para este |
+| QR | Que los parámetros que el QR publica son los del documento. El `cHashQR` no se puede recalcular sin el CSC del emisor, que sólo conocen él y la DNIT |
+
+Las horas del documento vienen sin zona y se interpretan como **hora de
+Asunción**, que es lo que son. Leerlas como UTC las correría tres horas, y eso
+decide de qué lado de una medianoche cae una firma respecto de la vigencia del
+certificado.
 
 La cadena se valida contra la [Lista de Confianza][tsl] que publica el
 Ministerio de Industria y Comercio, comprobando la firma de cada eslabón. Un
