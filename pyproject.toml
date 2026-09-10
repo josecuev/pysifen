@@ -52,9 +52,12 @@ Issues = "https://github.com/josecuev/pysifen/issues"
 api = ["fastapi>=0.141.1", "uvicorn[standard]>=0.52.4"]
 # Firma con clave en token o HSM vía PKCS#11.
 pkcs11 = ["python-pkcs11>=0.10.0"]
+# Servidor MCP, para leer y verificar documentos desde un modelo.
+mcp = ["mcp>=2.2"]
 
 [project.scripts]
 pysifen = "pysifen.cli:main"
+pysifen-mcp = "pysifen.mcp.servidor:main"
 
 [project.entry-points."pysifen.psc"]
 # Prestadores cualificados de servicios de confianza habilitados por el MIC.

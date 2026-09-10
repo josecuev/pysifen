@@ -71,6 +71,9 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 | Línea de comandos | Listo |
 | Modelos de los 49 grupos, generados desde el esquema | Listo |
 | Validación contra el esquema oficial de la DNIT | Listo |
+| Lectura y verificación de documentos recibidos | Listo |
+| Servidor MCP sin estado (stdio y HTTP) | Listo |
+| Validación de la cadena de confianza | Pendiente |
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |

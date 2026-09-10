@@ -52,12 +52,42 @@ lote, consulta de DE, consulta de RUC y eventos.
 **Criterio**: los seis clientes implementados, con sus respuestas modeladas y
 sus errores traducidos.
 
+### 0.6.0 — leer y verificar documentos recibidos
+
+El otro lado del negocio, y el que más gente necesita: **recibir**. Una empresa
+recibe muchos más documentos de los que emite, y cada uno hay que leerlo,
+verificar que sea auténtico y extraer sus datos.
+
+Esta capacidad **no necesita certificado propio ni habilitación**: se puede
+entregar y demostrar de forma completa.
+
+Qué incluye:
+
+- Leer un documento recibido a los modelos, sin perder nada.
+- Verificar la firma: recalcular el resumen y comprobar la firma con el
+  certificado que el propio documento trae.
+- Verificar el certificado: que sea de un prestador cualificado, y que
+  estuviera **vigente al momento de la firma**, que es la fecha que importa, no
+  la de hoy.
+- Verificar la coherencia interna: que el CDC cierre, que el RUC del CDC sea el
+  del certificado, que el QR declare los mismos totales que el documento.
+- Procesar lotes sin releer el esquema en cada documento.
+
+**Criterio**: verificar documentos reales de emisores distintos, y detectar una
+alteración de un solo carácter.
+
+Estado: la lectura, la verificación de firma y el servidor MCP ya están. Falta
+lo más importante: **validar la cadena de confianza**. Hoy el prestador se
+identifica por el nombre del emisor del certificado, que es falsificable.
+Hasta que eso se resuelva, `confiable` significa «todas las comprobaciones
+disponibles pasaron», no «auténtico».
+
 ### 0.9.0 — contra el ambiente de test de la DNIT
 
 Acá deja de ser una librería que *cree* estar bien y pasa a ser una que *está*
 bien.
 
-**Criterio**, y es el que importa de verdad:
+**Criterio**:
 
 - [ ] Un documento emitido por la librería, firmado con un certificado
       cualificado real, **aceptado por el ambiente de test del SIFEN**.
@@ -73,16 +103,29 @@ reglas de negocio que el esquema no expresa.
 
 **Criterio**:
 
-- [ ] Todo lo anterior.
-- [ ] Al menos un contribuyente emitiendo en **producción** con la librería.
+- [ ] Todo lo anterior: emitir, leer, verificar y transmitir.
 - [ ] La API pública sin cambios incompatibles durante un ciclo de versión
       menor completo.
 - [ ] La representación gráfica (KuDE) o una decisión documentada de dejarla
       fuera del alcance.
 
-A partir de 1.0.0, un cambio incompatible obliga a subir la versión mayor. Por
-eso no se llega antes de tiempo: comprometerse con una API que todavía no se
-probó contra el organismo sería prometer algo que no se puede sostener.
+A partir de acá, un cambio incompatible obliga a subir la versión mayor.
+
+La 1.0.0 **no** espera a que alguien emita en producción. Ese es un hecho
+comercial, no técnico, y hacer depender el número de versión de algo que el
+proyecto no controla dejaría la librería en 0.x para siempre. Lo que la 1.0.0
+promete es que la API es estable y que todo lo que la librería dice hacer, lo
+hace y está probado.
+
+### 2.0.0 — probada en producción
+
+**Criterio**:
+
+- [ ] Al menos un contribuyente emitiendo en **producción** con la librería, de
+      forma sostenida.
+- [ ] Los ajustes que ese uso real haya obligado a hacer, que casi seguro
+      incluyen algún cambio incompatible: por eso es una versión mayor y no una
+      menor.
 
 ## Lo que no está en la hoja de ruta
 
