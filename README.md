@@ -12,7 +12,7 @@
   <a href="https://josecuev.github.io/pysifen/"><img alt="Documentación" src="https://img.shields.io/badge/docs-mkdocs--material-blue.svg"></a>
   <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
   <a href="https://mypy-lang.org/"><img alt="mypy" src="https://img.shields.io/badge/mypy-strict-2a6db2.svg"></a>
-  <a href="https://hub.docker.com/r/josecuev/pysifen"><img alt="Docker" src="https://img.shields.io/docker/v/josecuev/pysifen?label=docker&logo=docker"></a>
+  <a href="https://hub.docker.com/r/josecuev/pysifen"><img alt="Docker" src="https://img.shields.io/docker/image-size/josecuev/pysifen/latest?arch=amd64&label=docker&logo=docker"></a>
 </p>
 
 ---
