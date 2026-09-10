@@ -1,0 +1,121 @@
+name: Publicar
+
+# Se dispara al empujar un tag de versión, por ejemplo v0.2.0.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Verificar antes de publicar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Poetry
+        run: pipx install poetry==2.4.3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: poetry
+
+      - name: El manifiesto y el lock tienen que estar en sintonía
+        run: |
+          poetry check --strict
+          poetry check --lock
+
+      - name: Instalar
+        run: poetry install --with dev,test --no-interaction
+
+      - name: Calidad
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+          poetry run mypy
+
+      - name: Tests
+        run: poetry run pytest -m "not red and not certificado"
+
+      - name: El tag tiene que coincidir con la versión del paquete
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version_paquete="$(poetry version --short)"
+          version_tag="${GITHUB_REF_NAME#v}"
+          if [ "$version_paquete" != "$version_tag" ]; then
+            echo "El tag dice $version_tag y el paquete dice $version_paquete" >&2
+            exit 1
+          fi
+          echo "Versión $version_paquete confirmada"
+
+  construir:
+    name: Construir
+    needs: verificar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Poetry
+        run: pipx install poetry==2.4.3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: poetry
+
+      - name: Construir con Poetry
+        run: poetry build
+
+      - name: Verificar los metadatos
+        run: |
+          pipx install twine
+          twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publicar:
+    name: Publicar en PyPI
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pysifen/
+    permissions:
+      # Necesario para la publicación confiable y para firmar la procedencia.
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Atestiguar la procedencia de los artefactos
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+
+      - name: Subir a PyPI
+        # La subida usa Publicación Confiable (OIDC): no hay ningún token de
+        # PyPI guardado como secreto que pueda filtrarse o quedar vigente para
+        # siempre. GitHub prueba su identidad ante PyPI en cada ejecución y
+        # recibe una credencial de un solo uso.
+        #
+        # La construcción la hace Poetry; la subida la hace la acción oficial
+        # de la PyPA porque es la que sabe hacer OIDC y adjuntar la procedencia.
+        # Para una publicación manual desde la máquina de desarrollo alcanza
+        # con `poetry publish`.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+          print-hash: true

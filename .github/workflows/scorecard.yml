@@ -1,0 +1,43 @@
+name: Scorecard
+
+# Evaluación de la postura de seguridad del repositorio por la OpenSSF:
+# ramas protegidas, dependencias fijadas, permisos de los tokens, análisis
+# estático, firmas de release y demás. El resultado queda publicado en la
+# pestaña de seguridad y sirve como evidencia auditable.
+
+on:
+  branch_protection_rule:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analisis:
+    name: Analizar
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Ejecutar Scorecard
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Publicar resultados
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scorecard.sarif
+          category: scorecard

@@ -1,0 +1,117 @@
+name: Seguridad
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Los lunes a las 06:00 en Asunción (UTC-3). Una dependencia puede volverse
+    # vulnerable sin que nadie toque el repositorio, así que el análisis corre
+    # aunque no haya commits.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analizar
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  auditoria:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar Poetry
+        run: pipx install poetry
+
+      - name: Exportar el árbol resuelto
+        # pip-audit se ejecuta aislado, fuera del grafo del proyecto: su propio
+        # árbol de dependencias tiene topes de versión que estrecharían el
+        # rango de Python que soporta la librería.
+        run: |
+          pipx inject poetry poetry-plugin-export
+          poetry export --without-hashes --with dev,test,docs -o requisitos.txt
+
+      - name: pip-audit
+        run: |
+          pipx install pip-audit
+          pip-audit --requirement requisitos.txt --strict --desc
+
+  zizmor:
+    name: Análisis de los workflows
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Analizar los workflows
+        run: |
+          pipx install zizmor
+          zizmor --format sarif . > zizmor.sarif || true
+
+      - name: Publicar resultados
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+
+  sbom:
+    name: Inventario de componentes (SBOM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Generar el SBOM
+        # CycloneDX es el formato que piden las auditorias de cadena de
+        # suministro. Se genera desde el lock, no desde el entorno instalado,
+        # para que el inventario sea reproducible.
+        run: |
+          pipx install cyclonedx-bom
+          cyclonedx-py poetry --output-format json --outfile sbom.cdx.json
+
+      - name: Publicar el SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          retention-days: 90

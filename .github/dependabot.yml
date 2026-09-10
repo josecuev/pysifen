@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  # Dependencias de Python. El ecosistema "pip" entiende Poetry: lee el
+  # pyproject.toml y el poetry.lock.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Asuncion
+    open-pull-requests-limit: 10
+    versioning-strategy: increase-if-necessary
+    labels:
+      - dependencias
+    commit-message:
+      prefix: "Actualizar"
+      include: scope
+    groups:
+      # Las actualizaciones de parche y menores se agrupan en un solo PR para
+      # no inundar la cola de revisión.
+      menores:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      # Las de seguridad van siempre por separado y sin agrupar, para poder
+      # revisarlas y mezclarlas rápido.
+      seguridad:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # MkDocs 2.0 elimina el sistema de plugins sin camino de migración y
+      # rompería toda la documentación. La subida se hace a mano, cuando haya
+      # una estrategia decidida.
+      - dependency-name: mkdocs
+        update-types:
+          - version-update:semver-major
+      - dependency-name: mkdocs-material
+        update-types:
+          - version-update:semver-major
+
+  # Las acciones de los workflows también se actualizan: una acción vieja es
+  # una superficie de ataque en la cadena de compilación.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Asuncion
+    labels:
+      - dependencias
+      - ci
+    commit-message:
+      prefix: "Actualizar"
+    groups:
+      acciones:
+        patterns:
+          - "*"

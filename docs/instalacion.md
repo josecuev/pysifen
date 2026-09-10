@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Python 3.11 o superior.
+- Python 3.12 o superior.
 
 ## Desde PyPI
 
@@ -41,45 +41,51 @@ aparte:
 
 ## Desde el repositorio
 
+El proyecto resuelve sus dependencias con
+[Poetry](https://python-poetry.org/). El archivo `poetry.lock` fija el árbol
+completo, así que todos los entornos instalan exactamente lo mismo.
+
 ```bash
 git clone https://github.com/josecuev/pysifen.git
 cd pysifen
-python -m venv .venv
-source .venv/bin/activate      # en Windows: .venv\Scripts\activate
-pip install -e ".[api,pkcs11]"
+poetry install --with dev,test,docs
 ```
 
 ## Entorno de desarrollo
 
-El proyecto usa grupos de dependencias declarados en `pyproject.toml`.
-
-```bash
-pip install -e .
-pip install pytest pytest-cov mypy ruff
-```
-
 Verificación completa, que es la misma que corre en integración continua:
 
 ```bash
-ruff check .
-ruff format --check .
-mypy
-pytest
+poetry check --strict
+poetry check --lock
+poetry run ruff check .
+poetry run ruff format --check .
+poetry run mypy
+poetry run pytest
+```
+
+Para agregar o subir una dependencia, siempre a través de Poetry, de modo
+que el lock quede en sintonía:
+
+```bash
+poetry add lxml
+poetry add --group dev ruff
+poetry update
 ```
 
 Los tests que necesitan red o un certificado real están marcados y quedan fuera
 de la corrida por omisión:
 
 ```bash
-pytest -m "not red and not certificado"   # comportamiento por defecto
+poetry run pytest -m "not red and not certificado"   # comportamiento por defecto
 pytest -m red                             # sólo los que salen a la red
 ```
 
 ## Documentación local
 
 ```bash
-pip install mkdocs mkdocs-material "mkdocstrings[python]" mkdocs-gen-files mkdocs-literate-nav
-mkdocs serve
+poetry install --with docs
+poetry run mkdocs serve
 ```
 
 La referencia de la API se genera desde el código en cada compilación, así que

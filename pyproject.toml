@@ -4,7 +4,7 @@ version = "0.2.0.dev0"
 description = "Librería Python para el Sistema Integrado de Facturación Electrónica Nacional (SIFEN) de Paraguay"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [{ name = "José Cuevas", email = "jmcuev89@gmail.com" }]
 maintainers = [{ name = "José Cuevas", email = "jmcuev89@gmail.com" }]
 keywords = [
@@ -21,24 +21,23 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: Spanish",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Office/Business :: Financial :: Accounting",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 dependencies = [
-    "cryptography>=43.0",
-    "httpx>=0.27",
-    "lxml>=5.2",
-    "pydantic>=2.8",
-    "segno>=1.6",
+    "cryptography>=50.0.1",
+    "httpx>=0.28.1",
+    "lxml>=6.1.3",
+    "pydantic>=2.13.5",
+    "segno>=1.6.6",
 ]
 
 [project.urls]
@@ -50,9 +49,9 @@ Issues = "https://github.com/josecuev/pysifen/issues"
 
 [project.optional-dependencies]
 # Microservicio HTTP opcional. El núcleo no depende de esto.
-api = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+api = ["fastapi>=0.141.1", "uvicorn[standard]>=0.52.4"]
 # Firma con clave en token o HSM vía PKCS#11.
-pkcs11 = ["python-pkcs11>=0.7"]
+pkcs11 = ["python-pkcs11>=0.10.0"]
 
 [project.entry-points."pysifen.psc"]
 # Prestadores cualificados de servicios de confianza habilitados por el MIC.
@@ -65,28 +64,26 @@ confirma = "pysifen.pki.providers.confirma:ConfirmaProvider"
 itti = "pysifen.pki.providers.itti:IttiProvider"
 sos = "pysifen.pki.providers.sos:SosProvider"
 
-[dependency-groups]
-dev = [
-    "mypy>=1.11",
-    "ruff>=0.6",
-    "lxml-stubs>=0.5",
-]
-test = [
-    "pytest>=8.3",
-    "pytest-cov>=5.0",
-    "freezegun>=1.5",
-    "respx>=0.21",
-]
-docs = [
-    # Pin a la serie 1.x: MkDocs 2.0 elimina el sistema de plugins y no
-    # ofrece camino de migracion, asi que romperia gen-files, literate-nav,
-    # mkdocstrings y el tema Material de una sola vez.
-    "mkdocs>=1.6,<2",
-    "mkdocs-material>=9.5,<10",
-    "mkdocstrings[python]>=0.26",
-    "mkdocs-gen-files>=0.5",
-    "mkdocs-literate-nav>=0.6",
-]
+[tool.poetry.group.dev.dependencies]
+mypy = ">=2.3.1"
+ruff = ">=0.16.6"
+lxml-stubs = ">=0.5.1"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=9.1.1"
+pytest-cov = ">=7.1.0"
+freezegun = ">=1.5.5"
+respx = ">=0.23.1"
+
+[tool.poetry.group.docs.dependencies]
+# Pin a la serie 1.x: MkDocs 2.0 elimina el sistema de plugins y no ofrece
+# camino de migracion, asi que romperia gen-files, literate-nav, mkdocstrings
+# y el tema Material de una sola vez.
+mkdocs = ">=1.6.1,<2"
+mkdocs-material = ">=9.7.7,<10"
+mkdocstrings = { version = ">=1.0.6", extras = ["python"] }
+mkdocs-gen-files = ">=0.6.1"
+mkdocs-literate-nav = ">=0.6.3"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
@@ -100,7 +97,7 @@ packages = [{ include = "pysifen", from = "src" }]
 # --------------------------------------------------------------------------- #
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -148,7 +145,7 @@ docstring-code-format = true
 # Tipado
 # --------------------------------------------------------------------------- #
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_unreachable = true
 warn_return_any = true
@@ -158,7 +155,7 @@ show_error_codes = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["segno.*", "pkcs11.*"]
+module = ["segno>=1.6.6", "pkcs11.*"]
 ignore_missing_imports = true
 
 # --------------------------------------------------------------------------- #

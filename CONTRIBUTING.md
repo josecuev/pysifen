@@ -10,25 +10,38 @@ request* directamente.
 
 ## Entorno
 
+El proyecto usa [Poetry](https://python-poetry.org/) para resolver
+dependencias y para publicar. No uses `pip install` sobre el proyecto: el
+`poetry.lock` es lo que garantiza que todos instalemos lo mismo.
+
 ```bash
 git clone https://github.com/josecuev/pysifen.git
 cd pysifen
-python -m venv .venv
-source .venv/bin/activate      # en Windows: .venv\Scripts\activate
-pip install -e .
-pip install pytest pytest-cov mypy ruff
+poetry install --with dev,test,docs
 ```
+
+Para agregar o subir una dependencia:
+
+```bash
+poetry add cryptography
+poetry add --group dev mypy
+poetry update
+```
+
+El `poetry.lock` se commitea siempre junto con el cambio de `pyproject.toml`.
 
 ## Verificación
 
-Estos cuatro comandos son los mismos que corre integración continua. Tienen que
+Estos comandos son los mismos que corre integración continua. Tienen que
 pasar antes de mandar el *pull request*:
 
 ```bash
-ruff check .
-ruff format --check .
-mypy
-pytest
+poetry check --strict
+poetry check --lock
+poetry run ruff check .
+poetry run ruff format --check .
+poetry run mypy
+poetry run pytest
 ```
 
 ## La regla que importa
