@@ -113,6 +113,15 @@ class Verificacion:
     observaciones: tuple[str, ...] = field(default_factory=tuple)
 
     @property
+    def tolerancias(self) -> tuple[str, ...]:
+        """Desvíos del estándar que hubo que tolerar para validar la firma.
+
+        Vacío significa estrictamente conforme. Ver
+        :mod:`pysifen.signing.verificacion`.
+        """
+        return self.firma.tolerancias if self.firma else ()
+
+    @property
     def firma_valida(self) -> bool:
         """``True`` si la firma cierra: resumen y firma criptográfica."""
         return self.firma is not None and self.firma.valida
@@ -178,6 +187,8 @@ class Verificacion:
             "por el nombre del emisor del certificado, que es falsificable. La "
             "firma sí prueba que el contenido no fue alterado."
         )
+        if self.tolerancias:
+            resumen["tolerancias"] = list(self.tolerancias)
         if self.observaciones:
             resumen["reparos"] = list(self.observaciones)
         if self.problemas_de_esquema:
@@ -203,6 +214,8 @@ class Verificacion:
             f"  firma         {'válida' if self.firma_valida else 'INVÁLIDA'}"
         )
         lineas.append(f"  prestador     {self.prestador or 'NO IDENTIFICADO'}")
+        for tolerancia in self.tolerancias:
+            lineas.append(f"  ~ toleró: {tolerancia}")
         for observacion in self.observaciones:
             lineas.append(f"  · {observacion}")
         return "\n".join(lineas)
@@ -242,6 +255,10 @@ def verificar_documento(
     resultado_firma = verificar_firma(raiz)
     if resultado_firma.motivo:
         observaciones.append(resultado_firma.motivo)
+    observaciones.extend(
+        f"la firma verificó, pero no de forma estrictamente conforme: {t}"
+        for t in resultado_firma.tolerancias
+    )
 
     datos = _datos_del_documento(raiz)
     certificado = resultado_firma.certificado

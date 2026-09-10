@@ -102,6 +102,69 @@ class TestVerificacionDeLaFirma:
         assert verificar_firma(arbol).valida is False
 
 
+class TestTolerancias:
+    """Desvíos del estándar que los emisores reales producen.
+
+    El verificador los tolera porque no debilitan nada —el contenido sigue
+    siendo el mismo— pero deja constancia de cuál toleró.
+    """
+
+    def test_una_firma_conforme_no_necesita_tolerancias(
+        self, firmante: FirmantePkcs12
+    ) -> None:
+        resultado = verificar_firma(etree.fromstring(_documento_firmado(firmante)))
+        assert resultado.valida
+        assert resultado.estrictamente_conforme
+        assert resultado.tolerancias == ()
+
+    def test_tolera_el_xml_indentado_despues_de_firmar(
+        self, firmante: FirmantePkcs12
+    ) -> None:
+        # Un emisor real formatea el XML una vez firmado. La canonicalización
+        # conserva esos espacios, así que el resumen deja de cerrar.
+        arbol = etree.fromstring(_documento_firmado(firmante))
+        indentado = etree.tostring(arbol, pretty_print=True)
+
+        resultado = verificar_firma(etree.fromstring(indentado))
+        assert resultado.valida
+        assert resultado.estrictamente_conforme is False
+        assert any("indentación" in t for t in resultado.tolerancias)
+
+    def test_tolera_el_signed_info_de_un_documento_con_mas_espacios_de_nombres(
+        self, firmante: FirmantePkcs12
+    ) -> None:
+        # Dos de los cinco emisores reales arman la firma como documento
+        # aparte, sin heredar el xmlns:xsi del rDE.
+        firmado = _documento_firmado(firmante)
+        con_xsi = firmado.replace(
+            b'<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd">',
+            b'<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd" '
+            b'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+            1,
+        )
+        resultado = verificar_firma(etree.fromstring(con_xsi))
+        # La firma sigue siendo válida: el contenido no cambió.
+        assert resultado.valida
+
+    def test_no_tolera_que_el_contenido_no_corresponda(
+        self, firmante: FirmantePkcs12
+    ) -> None:
+        # El límite de la tolerancia: si el contenido cambió, se rechaza.
+        alterado = _documento_firmado(firmante).replace(b"587326098", b"111111111")
+        resultado = verificar_firma(etree.fromstring(alterado))
+        assert resultado.valida is False
+        assert resultado.tolerancias == ()
+
+    def test_el_informe_declara_las_tolerancias(self, firmante: FirmantePkcs12) -> None:
+        arbol = etree.fromstring(_documento_firmado(firmante))
+        indentado = etree.tostring(arbol, pretty_print=True)
+
+        resultado = verificar_documento(indentado)
+        assert resultado.tolerancias
+        assert "tolerancias" in resultado.resumir()
+        assert any("estrictamente conforme" in o for o in resultado.observaciones)
+
+
 class TestInformeCompleto:
     def test_reune_todas_las_comprobaciones(self, firmante: FirmantePkcs12) -> None:
         resultado = verificar_documento(_documento_firmado(firmante))

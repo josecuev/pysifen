@@ -9,7 +9,7 @@ cuando se puede demostrar, no cuando parece que sí.
 
 ## Dónde estamos
 
-### 0.2.0 — el núcleo estructural
+### 0.2.0 — el núcleo estructural (publicada)
 
 Lo que hay hoy:
 
@@ -29,63 +29,96 @@ Lo que **no** hay: transmitir.
 
 ## Lo que falta
 
-### 0.3.0 — la API de emisión
+## El criterio que ordena todo
 
-Una fachada que orqueste el ciclo completo en vez de obligar a encadenar siete
-llamadas en el orden correcto.
+**La 1.0.0 es leer y validar. La 2.0.0 es emitir.**
 
-**Criterio**: emitir una factura completa y válida en una sola llamada, con los
-ejemplos de la documentación corriendo como tests.
+No es un orden arbitrario. Leer y validar se puede completar y demostrar **sin
+certificado propio y sin estar habilitado como facturador**: el documento trae
+adentro el certificado de quien lo firmó. Emitir, en cambio, depende de un
+trámite ante la DNIT y de un certificado cualificado, o sea de hechos que el
+proyecto no controla.
 
-### 0.4.0 — eventos
+Además es lo que más gente necesita: una empresa recibe muchos más documentos
+de los que emite.
 
-Cancelación, inutilización, nominación, conformidad y disconformidad. Los
-esquemas ya están incluidos (`Evento_v150.xsd`); falta modelarlos y armarlos.
+El código de emisión que ya existe —CDC, firma, QR, modelos— sigue ahí y sigue
+probado, pero queda marcado como **en desarrollo**: la promesa de estabilidad de
+la 1.0.0 no lo cubre.
 
-**Criterio**: cada tipo de evento se arma y valida contra su esquema.
+## Camino a la 1.0.0 — leer y validar
 
-### 0.5.0 — servicios web
+### 0.3.0 — la cadena de confianza
 
-SOAP 1.2 con TLS mutuo contra los seis servicios: recepción, lote, consulta de
-lote, consulta de DE, consulta de RUC y eventos.
+Es el hueco que hoy impide decir "auténtico".
 
-**Criterio**: los seis clientes implementados, con sus respuestas modeladas y
-sus errores traducidos.
+El prestador se identifica comparando el nombre del emisor del certificado
+contra una lista, y ese nombre es texto que cualquiera escribe en un
+certificado autofirmado. Sirve para clasificar, no para probar.
 
-### 0.6.0 — leer y verificar documentos recibidos
+Qué hace falta: los certificados raíz de los siete prestadores habilitados, y
+verificar la ruta de confianza desde el certificado del documento hasta uno de
+ellos.
 
-El otro lado del negocio, y el que más gente necesita: **recibir**. Una empresa
-recibe muchos más documentos de los que emite, y cada uno hay que leerlo,
-verificar que sea auténtico y extraer sus datos.
+**Criterio**: un certificado autofirmado que dice ser de DOCUMENTA es
+rechazado; uno realmente emitido por DOCUMENTA es aceptado.
 
-Esta capacidad **no necesita certificado propio ni habilitación**: se puede
-entregar y demostrar de forma completa.
+### 0.4.0 — entender por qué fallan las firmas reales
 
-Qué incluye:
+De cinco documentos reales de cinco emisores distintos, **cuatro no verifican
+su firma**. No es un error del verificador: una implementación independiente
+falla en los mismos cuatro.
 
-- Leer un documento recibido a los modelos, sin perder nada.
-- Verificar la firma: recalcular el resumen y comprobar la firma con el
-  certificado que el propio documento trae.
-- Verificar el certificado: que sea de un prestador cualificado, y que
-  estuviera **vigente al momento de la firma**, que es la fecha que importa, no
-  la de hoy.
-- Verificar la coherencia interna: que el CDC cierre, que el RUC del CDC sea el
-  del certificado, que el QR declare los mismos totales que el documento.
-- Procesar lotes sin releer el esquema en cada documento.
+Hasta saber por qué, la herramienta no se puede recomendar: diría "no
+confiable" sobre documentos legítimos.
 
-**Criterio**: verificar documentos reales de emisores distintos, y detectar una
-alteración de un solo carácter.
+**Criterio**: explicación documentada de cada caso, y si resulta ser de la
+librería, corregido. Si resulta del camino por correo o del emisor, dicho con
+evidencia.
 
-Estado: la lectura, la verificación de firma y el servidor MCP ya están. Falta
-lo más importante: **validar la cadena de confianza**. Hoy el prestador se
-identifica por el nombre del emisor del certificado, que es falsificable.
-Hasta que eso se resuelva, `confiable` significa «todas las comprobaciones
-disponibles pasaron», no «auténtico».
+### 0.5.0 — lectura completa a modelos
 
-### 0.9.0 — contra el ambiente de test de la DNIT
+Hoy se extraen los campos que identifican al documento con caminos XPath. Falta
+interpretar el documento entero a los modelos generados, sin perder nada.
 
-Acá deja de ser una librería que *cree* estar bien y pasa a ser una que *está*
-bien.
+**Criterio**: un documento leído y vuelto a serializar produce un XML
+equivalente.
+
+### 0.6.0 — revocación
+
+Consultar la lista de certificados revocados del prestador. Es la única
+comprobación que necesita red, así que va explícita y nunca por omisión.
+
+**Criterio**: un certificado revocado se detecta; sin red, se informa que no se
+pudo comprobar en vez de darlo por bueno.
+
+### 1.0.0 — leer y validar, al 100%
+
+**Criterio**:
+
+- [ ] Las cuatro anteriores.
+- [ ] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
+      firma, revocación, coherencia de CDC y QR.
+- [ ] Documentos reales de emisores distintos verificados correctamente.
+- [ ] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
+      pasaron".
+- [ ] La API pública de lectura, estable.
+
+A partir de acá, un cambio incompatible en la API de lectura obliga a subir la
+versión mayor.
+
+## Camino a la 2.0.0 — emitir
+
+### 1.x — la API de emisión y los eventos
+
+Una fachada que orqueste armar, calcular el CDC, firmar, generar el QR y
+validar. Y los eventos: cancelación, inutilización, nominación, conformidad.
+
+### 1.x — servicios web
+
+SOAP 1.2 con TLS mutuo contra los seis servicios del SIFEN.
+
+### 2.0.0 — emitir de verdad
 
 **Criterio**:
 
@@ -95,37 +128,8 @@ bien.
 - [ ] Un evento de cancelación aceptado.
 - [ ] La respuesta del SIFEN guardada como evidencia.
 
-Hasta que eso pase, ninguna cantidad de tests locales alcanza. La validación
-contra el esquema es necesaria pero no suficiente: el SIFEN aplica además
-reglas de negocio que el esquema no expresa.
-
-### 1.0.0 — API estable
-
-**Criterio**:
-
-- [ ] Todo lo anterior: emitir, leer, verificar y transmitir.
-- [ ] La API pública sin cambios incompatibles durante un ciclo de versión
-      menor completo.
-- [ ] La representación gráfica (KuDE) o una decisión documentada de dejarla
-      fuera del alcance.
-
-A partir de acá, un cambio incompatible obliga a subir la versión mayor.
-
-La 1.0.0 **no** espera a que alguien emita en producción. Ese es un hecho
-comercial, no técnico, y hacer depender el número de versión de algo que el
-proyecto no controla dejaría la librería en 0.x para siempre. Lo que la 1.0.0
-promete es que la API es estable y que todo lo que la librería dice hacer, lo
-hace y está probado.
-
-### 2.0.0 — probada en producción
-
-**Criterio**:
-
-- [ ] Al menos un contribuyente emitiendo en **producción** con la librería, de
-      forma sostenida.
-- [ ] Los ajustes que ese uso real haya obligado a hacer, que casi seguro
-      incluyen algún cambio incompatible: por eso es una versión mayor y no una
-      menor.
+Es una versión mayor y no menor porque el primer contacto real con el organismo
+casi seguro obliga a cambiar algo de la API.
 
 ## Lo que no está en la hoja de ruta
 
