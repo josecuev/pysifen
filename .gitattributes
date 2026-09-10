@@ -1,0 +1,13 @@
+# Normaliza los finales de línea: LF en el repositorio, lo nativo en el disco.
+* text=auto eol=lf
+
+# Los scripts de shell necesitan LF también en Windows.
+*.sh text eol=lf
+
+# Binarios que git no debe tocar.
+*.p12 binary
+*.pfx binary
+*.der binary
+*.png binary
+*.jpg binary
+*.pdf binary
