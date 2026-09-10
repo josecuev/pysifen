@@ -57,7 +57,9 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 ## Estado
 
 > [!WARNING]
-> En desarrollo. Todavía no cubre el ciclo completo de emisión.
+> Versión 0.2.0. Arma, firma y valida documentos electrónicos, pero
+> **todavía no los transmite al SIFEN**. La API puede cambiar mientras
+> la versión empiece en `0.`. Ver la [hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/).
 
 | Componente | Estado |
 |---|---|

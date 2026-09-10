@@ -7,6 +7,15 @@ el versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ## [No publicado]
 
+Nada todavía.
+
+## [0.2.0] — 2026-09-10
+
+Primera versión con sustancia. Cubre el armado, la firma y la validación
+de documentos electrónicos; **todavía no transmite al SIFEN**. Ver la
+[hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/) para lo
+que falta y con qué criterio se llega a 1.0.0.
+
 ### Agregado
 
 - Código de Control (CDC): armado, descomposición y dígito verificador por
@@ -49,5 +58,6 @@ el versionado sigue [SemVer](https://semver.org/lang/es/).
 
 - Reserva del nombre en PyPI.
 
-[No publicado]: https://github.com/josecuev/pysifen/compare/v0.1.0...HEAD
+[No publicado]: https://github.com/josecuev/pysifen/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/josecuev/pysifen/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/josecuev/pysifen/releases/tag/v0.1.0
