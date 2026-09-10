@@ -4,6 +4,12 @@
 # Los scripts de shell necesitan LF también en Windows.
 *.sh text eol=lf
 
+# Los esquemas oficiales de la DNIT se guardan EXACTAMENTE como los publica
+# el servidor. Sin esto git les normaliza los saltos de linea y dejan de ser
+# identicos al original, que es justo lo que el manifiesto de checksums
+# garantiza. Ver docs/decisiones/0003-esquemas-oficiales.md
+*.xsd -text
+
 # Binarios que git no debe tocar.
 *.p12 binary
 *.pfx binary
