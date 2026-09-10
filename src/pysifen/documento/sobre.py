@@ -1,168 +1,45 @@
-"""El sobre del documento electrónico y los grupos comunes a todo tipo de DE.
+"""Armado del sobre ``rDE`` que envuelve al documento electrónico.
 
-Cubre los grupos ``AA`` (formato electrónico XML), ``A`` (campos firmados),
-``B`` (operación) y ``C`` (timbrado) del Manual Técnico SIFEN v150. Son los que
-lleva **todo** documento electrónico, sea factura, autofactura, nota de crédito
-o nota de remisión.
+Los modelos de los grupos viven en :mod:`pysifen.documento._generado`, que sale
+del esquema oficial. Acá está sólo lo que el esquema no puede expresar: dónde va
+el CDC —que es un atributo, no un elemento— y en qué momento se inserta la
+firma.
 
-.. warning::
-   Los grupos ``D`` a ``J`` todavía no están modelados. Un ``rDE`` armado sólo
-   con lo de acá no es un documento válido para transmitir: le faltan los datos
-   generales, los ítems y los totales. Ver el estado en el README.
+El orden de las operaciones importa y no es negociable:
+
+1. Se arma el ``rDE`` con el ``DE`` adentro, y el CDC como atributo ``Id``.
+2. Se **firma**, lo que inserta el ``Signature`` como hermano del ``DE``.
+3. Se agrega el ``gCamFuFD`` con el QR, que va **después** de la firma porque
+   el QR incluye el ``DigestValue`` que la firma acaba de producir.
+
+Invertir 2 y 3 produce un QR que no verifica.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from typing import ClassVar
+from typing import Any, Final
 
 from lxml import etree
-from pydantic import field_validator
 
-from pysifen.documento.base import GrupoSifen, campo, campo_opcional
-from pysifen.enums import TipoDocumento, TipoEmision
+from pysifen.documento._generado import DocumentoElectronico
 
 __all__ = [
+    "NS_SIFEN",
     "VERSION_DEL_FORMATO",
-    "DocumentoElectronico",
-    "Operacion",
-    "Timbrado",
+    "agregar_campos_fuera_de_firma",
     "sobre_rde",
 ]
 
-#: Versión del formato que exige el manual en el campo ``dVerFor`` (AA002).
-VERSION_DEL_FORMATO = 150
+#: Versión del formato que exige el manual en el campo ``dVerFor``.
+VERSION_DEL_FORMATO: Final = 150
 
 #: Espacio de nombres de los documentos electrónicos del SIFEN.
-NS_SIFEN = "http://ekuatia.set.gov.py/sifen/xsd"
+NS_SIFEN: Final = "http://ekuatia.set.gov.py/sifen/xsd"
 
 
-class Operacion(GrupoSifen):
-    """Grupo B. Campos inherentes a la operación del DE (B001-B099).
-
-    El elemento se llama ``gOpeDE``.
-    """
-
-    _etiqueta: ClassVar[str] = "gOpeDE"
-
-    iTipEmi: TipoEmision = campo("B002", "Tipo de emisión")
-    dDesTipEmi: str = campo("B003", "Descripción del tipo de emisión")
-    dCodSeg: str = campo(
-        "B004",
-        "Código de seguridad",
-        min_length=9,
-        max_length=9,
-        pattern=r"^\d{9}$",
-    )
-    dInfoEmi: str | None = campo_opcional(
-        "B005",
-        "Información de interés del emisor respecto al DE",
-        max_length=3000,
-    )
-    dInfoFisc: str | None = campo_opcional(
-        "B006",
-        "Información de interés del Fisco respecto al DE",
-        max_length=3000,
-    )
-
-    @classmethod
-    def normal(cls, codigo_de_seguridad: str, **extras: str | None) -> Operacion:
-        """Arma el grupo para una emisión normal, con su descripción normada.
-
-        Args:
-            codigo_de_seguridad: el ``dCodSeg`` de nueve dígitos.
-            **extras: ``dInfoEmi`` o ``dInfoFisc``, si corresponden.
-
-        Returns:
-            El grupo listo.
-        """
-        return cls(
-            iTipEmi=TipoEmision.NORMAL,
-            dDesTipEmi=TipoEmision.NORMAL.descripcion,
-            dCodSeg=codigo_de_seguridad,
-            **extras,
-        )
-
-
-class Timbrado(GrupoSifen):
-    """Grupo C. Datos del timbrado (C001-C099).
-
-    El elemento se llama ``gTimb``.
-
-    .. note::
-       El orden de ``dSerieNum`` sale de la tabla del manual, donde figura entre
-       ``dNumDoc`` (C007) y ``dFeIniT`` (C008) pese a llevar el identificador
-       C010. Es lo que pasa cuando una nota técnica agrega un campo al medio de
-       una secuencia ya publicada. Ver ``docs/decisiones/0001-orden-de-los-campos.md``.
-    """
-
-    _etiqueta: ClassVar[str] = "gTimb"
-
-    iTiDE: TipoDocumento = campo("C002", "Tipo de documento electrónico")
-    dDesTiDE: str = campo("C003", "Descripción del tipo de documento electrónico")
-    dNumTim: str = campo(
-        "C004",
-        "Número del timbrado",
-        min_length=8,
-        max_length=8,
-        pattern=r"^\d{8}$",
-    )
-    dEst: str = campo(
-        "C005", "Establecimiento", min_length=3, max_length=3, pattern=r"^\d{3}$"
-    )
-    dPunExp: str = campo(
-        "C006",
-        "Punto de expedición",
-        min_length=3,
-        max_length=3,
-        pattern=r"^\d{3}$",
-    )
-    dNumDoc: str = campo(
-        "C007",
-        "Número del documento",
-        min_length=7,
-        max_length=7,
-        pattern=r"^\d{7}$",
-    )
-    dSerieNum: str | None = campo_opcional(
-        "C010",
-        "Serie del número de timbrado",
-        min_length=2,
-        max_length=2,
-    )
-    dFeIniT: date = campo("C008", "Fecha de inicio de vigencia del timbrado")
-    dFeFinT: date | None = campo_opcional(
-        "C009", "Fecha de fin de vigencia del timbrado"
-    )
-
-    @field_validator("dNumDoc")
-    @classmethod
-    def _no_puede_ser_cero(cls, valor: str) -> str:
-        """El manual exige que la numeración empiece en 1 para un timbrado nuevo."""
-        if int(valor) == 0:
-            raise ValueError(
-                "el número de documento debe empezar en 1 para un timbrado nuevo (C007)"
-            )
-        return valor
-
-
-class DocumentoElectronico(GrupoSifen):
-    """Grupo A. Campos firmados del Documento Electrónico (A001-A099).
-
-    El elemento se llama ``DE`` y es el que se firma: lleva el CDC en su
-    atributo ``Id`` (A002), que es a lo que apunta la ``Reference`` de la firma.
-    """
-
-    _etiqueta: ClassVar[str] = "DE"
-
-    dDVId: int = campo("A003", "Dígito verificador del identificador del DE")
-    dFecFirma: datetime = campo("A004", "Fecha de la firma")
-    dSisFact: int = campo("A005", "Sistema de facturación")
-    gOpeDE: Operacion = campo("B001", "Campos inherentes a la operación de DE")
-    gTimb: Timbrado = campo("C001", "Datos del timbrado")
-
-    # El Id (A002) no es un elemento hijo sino un atributo del DE, y su valor es
-    # el CDC. Lo completa sobre_rde(), que es quien lo conoce.
+def _calificar(etiqueta: str, espacio: str | None) -> str:
+    """Antepone el espacio de nombres a una etiqueta, si lo hay."""
+    return f"{{{espacio}}}{etiqueta}" if espacio else etiqueta
 
 
 def sobre_rde(
@@ -171,27 +48,28 @@ def sobre_rde(
     *,
     espacio: str | None = NS_SIFEN,
 ) -> etree._Element:
-    """Arma el ``rDE``, o sea el grupo AA que envuelve al documento.
+    """Arma el ``rDE`` listo para firmar.
 
     Args:
         documento: el ``DE`` ya poblado.
-        cdc: el Código de Control, que va como atributo ``Id`` del ``DE``
-            (A002) y al que apunta la firma.
+        cdc: el Código de Control. Va como atributo ``Id`` del ``DE``, que es a
+            lo que apunta la ``Reference`` de la firma.
         espacio: espacio de nombres a aplicar. Por omisión, el del SIFEN.
 
     Returns:
-        El elemento ``rDE`` listo para firmar.
+        El elemento ``rDE``, sin firma todavía.
 
     Example:
         >>> raiz = sobre_rde(documento, cdc.valor)  # doctest: +SKIP
         >>> firmar_elemento(raiz, firmante)  # doctest: +SKIP
+        >>> agregar_campos_fuera_de_firma(raiz, url_del_qr)  # doctest: +SKIP
     """
-    etiqueta = f"{{{espacio}}}rDE" if espacio else "rDE"
-    # lxml admite None como clave para el espacio por omisión; los stubs no.
-    nsmap = {None: espacio} if espacio else None
-    raiz = etree.Element(etiqueta, nsmap=nsmap)  # type: ignore[arg-type]
+    # lxml admite None como clave del nsmap para declarar el espacio por
+    # omisión; los stubs lo tipan como Mapping[str, str] y no lo contemplan.
+    nsmap: Any = {None: espacio} if espacio else None
+    raiz = etree.Element(_calificar("rDE", espacio), nsmap=nsmap)
 
-    version = etree.SubElement(raiz, f"{{{espacio}}}dVerFor" if espacio else "dVerFor")
+    version = etree.SubElement(raiz, _calificar("dVerFor", espacio))
     version.text = str(VERSION_DEL_FORMATO)
 
     elemento = documento.a_elemento(espacio)
@@ -199,3 +77,47 @@ def sobre_rde(
     raiz.append(elemento)
 
     return raiz
+
+
+def agregar_campos_fuera_de_firma(
+    raiz: etree._Element,
+    url_del_qr: str,
+    *,
+    informacion_adicional: str | None = None,
+    espacio: str | None = NS_SIFEN,
+) -> etree._Element:
+    """Agrega el ``gCamFuFD`` con el QR, después de la firma.
+
+    El nombre del grupo lo dice: son los *campos fuera de la firma*. Van al
+    final del ``rDE``, detrás del ``Signature``, y quedan deliberadamente fuera
+    de lo firmado porque el QR se calcula **a partir** de la firma: incluye su
+    ``DigestValue``.
+
+    Args:
+        raiz: el ``rDE`` ya firmado.
+        url_del_qr: la URL que devuelve
+            :func:`~pysifen.qr.generar_url_qr`.
+        informacion_adicional: campo ``dInfAdic``, si corresponde.
+        espacio: espacio de nombres a aplicar.
+
+    Returns:
+        El elemento ``gCamFuFD`` recién creado.
+
+    Raises:
+        ValueError: si el documento todavía no está firmado. Agregar el QR
+            antes de firmar produciría un QR que no verifica.
+    """
+    firma = raiz.find("{http://www.w3.org/2000/09/xmldsig#}Signature")
+    if firma is None:
+        raise ValueError(
+            "hay que firmar antes de agregar el QR: el QR incluye el "
+            "DigestValue que produce la firma"
+        )
+
+    grupo = etree.SubElement(raiz, _calificar("gCamFuFD", espacio))
+    etree.SubElement(grupo, _calificar("dCarQR", espacio)).text = url_del_qr
+    if informacion_adicional:
+        etree.SubElement(
+            grupo, _calificar("dInfAdic", espacio)
+        ).text = informacion_adicional
+    return grupo

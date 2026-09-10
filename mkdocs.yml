@@ -96,6 +96,7 @@ nav:
   - Inicio: index.md
   - Instalación: instalacion.md
   - Normativa vigente: normativa-vigente.md
+  - Notas para agentes de IA: para-agentes.md
   - Seguridad:
       - Custodia del certificado: seguridad/custodia.md
   - Mantenimiento:

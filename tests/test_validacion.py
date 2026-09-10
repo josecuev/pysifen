@@ -75,9 +75,8 @@ class TestValidacionDeDocumentos:
         assert problemas
 
     def test_el_sobre_incompleto_reporta_lo_que_falta(self) -> None:
-        # El armador todavía cubre sólo los grupos AA, A, B y C, así que un
-        # documento suyo no es válido: le faltan los datos generales. Este test
-        # deja constancia del hueco y falla cuando se lo cierre.
+        # Un documento sin los grupos obligatorios no es válido. El validador
+        # tiene que decirlo, que es justamente para lo que está.
         raiz = sobre_rde(
             DocumentoElectronico.model_construct(
                 dDVId=8,
@@ -85,6 +84,11 @@ class TestValidacionDeDocumentos:
                 dSisFact=1,
                 gOpeDE=None,
                 gTimb=None,
+                gDatGralOpe=None,
+                gDtipDE=None,
+                gTotSub=None,
+                gCamGen=None,
+                gCamDEAsoc=(),
             ),
             "0" * 44,
         )

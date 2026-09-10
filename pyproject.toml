@@ -53,6 +53,9 @@ api = ["fastapi>=0.141.1", "uvicorn[standard]>=0.52.4"]
 # Firma con clave en token o HSM vía PKCS#11.
 pkcs11 = ["python-pkcs11>=0.10.0"]
 
+[project.scripts]
+pysifen = "pysifen.cli:main"
+
 [project.entry-points."pysifen.psc"]
 # Prestadores cualificados de servicios de confianza habilitados por el MIC.
 # Agregar uno nuevo no requiere tocar el nucleo: alcanza con publicar una
@@ -133,6 +136,9 @@ ignore = [
 # Los nombres de campo del SIFEN son los del Manual Técnico y no se normalizan.
 "src/pysifen/enums.py" = ["N815"]
 "src/pysifen/documento/*.py" = ["N815"]
+# El modulo generado: las anotaciones con patrones y enumeraciones no se
+# pueden partir en varias lineas sin volverlas ilegibles.
+"src/pysifen/documento/_generado.py" = ["N815", "E501"]
 "tests/**" = [
     "S101",   # assert es el vocabulario de pytest
     "D100", "D101", "D102", "D103", "D104",  # los tests se nombran, no se documentan

@@ -65,14 +65,28 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 | Código de seguridad `dCodSeg` | Listo |
 | Código QR del KuDE | Listo |
 | Tablas de códigos del Manual Técnico | Parcial |
-| Armado del XML: sobre, operación y timbrado (AA, A, B, C) | Listo |
-| Armado del XML: datos generales, ítems y totales (D a J) | En curso |
+| Armado del XML: sobre, firma y campos fuera de firma | Listo |
+| Línea de comandos | Listo |
+| Modelos de los 49 grupos, generados desde el esquema | Listo |
 | Validación contra el esquema oficial de la DNIT | Listo |
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
 | Cadena de confianza y revocación | En curso |
 | Web services (recepción, lote, consultas, eventos) | Pendiente |
+
+## Línea de comandos
+
+La librería se describe a sí misma, así que no hace falta saberse el manual:
+
+```bash
+pysifen buscar dTotGralOpe    # ¿en qué grupo vive este campo?
+pysifen grupo CamItem         # ¿qué campos tiene? ¿cuáles obligatorios?
+pysifen validar factura.xml   # ¿lo acepta el esquema oficial?
+pysifen cdc 0144444401700...  # descompone un Código de Control
+```
+
+Todos los comandos aceptan `--json`, para consumirlos desde otro programa.
 
 ## Principios
 

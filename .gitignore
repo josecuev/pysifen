@@ -163,3 +163,6 @@ cython_debug/
 #.idea/
 # Sitio de documentación generado por MkDocs
 site/
+
+# Archivo temporal del generador de modelos
+_generado.testigo.py

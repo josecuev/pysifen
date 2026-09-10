@@ -40,6 +40,9 @@ jobs:
       - name: Instalar
         run: poetry install --with dev --no-interaction
 
+      - name: El modulo generado esta al dia con el esquema
+        run: poetry run python scripts/generar_modelos.py --check
+
       - name: Ruff (lint)
         run: poetry run ruff check --output-format=github .
 

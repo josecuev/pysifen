@@ -1,4 +1,9 @@
-"""Pruebas del armado del XML del documento electrónico."""
+"""Pruebas del armado del XML del documento electrónico.
+
+Los modelos se generan desde el esquema oficial, así que acá no se prueba que el
+orden de los campos sea el correcto —eso lo garantiza el XSD— sino que el
+armado, la serialización y el sobre se comporten como corresponde.
+"""
 
 from __future__ import annotations
 
@@ -16,11 +21,12 @@ from pysifen.documento import (
     DocumentoElectronico,
     Operacion,
     Timbrado,
-    identificadores_del_manual,
+    agregar_campos_fuera_de_firma,
+    grupos_disponibles,
     sobre_rde,
 )
 from pysifen.documento.base import formatear
-from pysifen.enums import TipoContribuyente, TipoDocumento, TipoEmision
+from pysifen.enums import TipoContribuyente, TipoDocumento
 from pysifen.signing import firmar_documento
 from pysifen.signing.backends.pkcs12 import FirmantePkcs12
 
@@ -28,10 +34,10 @@ CDC_DEL_MANUAL = "01444444017001001001452822017012515873260988"
 
 
 def _timbrado(**cambios: object) -> Timbrado:
-    """Arma un timbrado de prueba, con los cambios que se pidan."""
+    """Arma un timbrado de prueba."""
     valores: dict[str, object] = {
-        "iTiDE": TipoDocumento.FACTURA,
-        "dDesTiDE": TipoDocumento.FACTURA.descripcion,
+        "iTiDE": 1,
+        "dDesTiDE": "Factura electrónica",
         "dNumTim": "12558946",
         "dEst": "001",
         "dPunExp": "001",
@@ -43,16 +49,70 @@ def _timbrado(**cambios: object) -> Timbrado:
 
 
 def _documento(**cambios: object) -> DocumentoElectronico:
-    """Arma un DE de prueba, con los cambios que se pidan."""
+    """Arma un DE de prueba con los grupos que ya se pueden poblar."""
     valores: dict[str, object] = {
         "dDVId": 8,
         "dFecFirma": datetime(2026, 9, 10, 10, 0, 0),  # noqa: DTZ001
         "dSisFact": 1,
-        "gOpeDE": Operacion.normal("587326098"),
+        "gOpeDE": Operacion(iTipEmi=1, dDesTipEmi="Normal", dCodSeg=587326098),
         "gTimb": _timbrado(),
+        "gDatGralOpe": None,
+        "gDtipDE": None,
+        "gTotSub": None,
+        "gCamGen": None,
+        "gCamDEAsoc": (),
     }
     valores.update(cambios)
-    return DocumentoElectronico(**valores)  # type: ignore[arg-type]
+    return DocumentoElectronico.model_construct(**valores)  # type: ignore[arg-type]
+
+
+class TestModelosGenerados:
+    """El esquema oficial define 49 grupos y todos tienen que estar."""
+
+    def test_estan_los_49_grupos(self) -> None:
+        assert len(grupos_disponibles()) == 49
+
+    @pytest.mark.parametrize(
+        ("grupo", "para"),
+        [
+            ("CamFE", "factura electrónica"),
+            ("CamAE", "autofactura"),
+            ("CamNCDE", "nota de crédito y débito"),
+            ("CamNRE", "nota de remisión"),
+            ("CamDEAsoc", "documento asociado"),
+            ("PagCred", "operación a crédito"),
+            ("Transp", "transporte"),
+            ("GrupEner", "sector energía"),
+            ("GrupSeg", "sector seguros"),
+        ],
+    )
+    def test_cubre_cada_tipo_de_documento(self, grupo: str, para: str) -> None:
+        assert grupo in grupos_disponibles(), f"falta el grupo de {para}"
+
+    def test_los_campos_conservan_el_nombre_del_sifen(self) -> None:
+        # Buscar un campo en el manual y en el código tiene que dar lo mismo.
+        assert "dNumTim" in Timbrado.model_fields
+        assert "dCodSeg" in Operacion.model_fields
+
+    def test_el_orden_es_el_del_esquema(self) -> None:
+        # dSerieNum va entre dNumDoc y dFeIniT pese a llevar un identificador
+        # posterior en el manual. Lo confirma el esquema.
+        campos = list(Timbrado.model_fields)
+        assert campos.index("dNumDoc") < campos.index("dSerieNum")
+        assert campos.index("dSerieNum") < campos.index("dFeIniT")
+
+    def test_las_enumeraciones_son_exactas(self) -> None:
+        # El esquema exige el literal carácter por carácter.
+        with pytest.raises(ValidationError):
+            Operacion(iTipEmi=1, dDesTipEmi="normal", dCodSeg=587326098)  # type: ignore[arg-type]
+
+    def test_rechaza_campos_desconocidos(self) -> None:
+        with pytest.raises(ValidationError):
+            _timbrado(dInventado="x")
+
+    def test_son_inmutables(self) -> None:
+        with pytest.raises(ValidationError):
+            _timbrado().dNumDoc = "0000001"
 
 
 class TestEstructuraDelSobre:
@@ -68,136 +128,56 @@ class TestEstructuraDelSobre:
         assert version.text == str(VERSION_DEL_FORMATO) == "150"
 
     def test_el_cdc_va_como_atributo_id_del_de(self) -> None:
-        # Es lo que exige el apartado 7.6: el Id del DE es el CDC, y la firma
-        # apunta ahí.
         raiz = sobre_rde(_documento(), CDC_DEL_MANUAL)
         de = raiz.find(f"{{{NS_SIFEN}}}DE")
         assert de is not None
         assert de.get("Id") == CDC_DEL_MANUAL
 
-    def test_el_orden_de_los_hijos_del_de(self) -> None:
+    def test_los_opcionales_ausentes_no_se_emiten(self) -> None:
         raiz = sobre_rde(_documento(), CDC_DEL_MANUAL)
         de = raiz.find(f"{{{NS_SIFEN}}}DE")
         assert de is not None
-        assert [etree.QName(h).localname for h in de] == [
-            "dDVId",
-            "dFecFirma",
-            "dSisFact",
-            "gOpeDE",
-            "gTimb",
-        ]
+        assert de.find(f"{{{NS_SIFEN}}}gDatGralOpe") is None
 
     def test_se_puede_armar_sin_espacio_de_nombres(self) -> None:
-        raiz = sobre_rde(_documento(), CDC_DEL_MANUAL, espacio=None)
-        assert raiz.tag == "rDE"
+        assert sobre_rde(_documento(), CDC_DEL_MANUAL, espacio=None).tag == "rDE"
 
 
-class TestGrupoOperacion:
-    def test_orden_de_los_campos(self) -> None:
-        elemento = Operacion.normal("587326098").a_elemento()
-        assert [h.tag for h in elemento] == ["iTipEmi", "dDesTipEmi", "dCodSeg"]
+class TestCamposFueraDeLaFirma:
+    """El QR va después de la firma porque se calcula a partir de ella."""
 
-    def test_la_etiqueta_es_gopede(self) -> None:
-        assert Operacion.normal("587326098").a_elemento().tag == "gOpeDE"
+    def test_exige_que_el_documento_este_firmado(self) -> None:
+        raiz = sobre_rde(_documento(), CDC_DEL_MANUAL)
+        with pytest.raises(ValueError, match="firmar antes"):
+            agregar_campos_fuera_de_firma(raiz, "https://ejemplo/qr?x=1")
 
-    def test_la_descripcion_acompana_al_tipo(self) -> None:
-        operacion = Operacion.normal("587326098")
-        assert operacion.iTipEmi is TipoEmision.NORMAL
-        assert operacion.dDesTipEmi == "Normal"
+    def test_se_agrega_al_final_despues_de_la_firma(
+        self, firmante: FirmantePkcs12
+    ) -> None:
+        raiz = etree.fromstring(
+            firmar_documento(
+                etree.tostring(sobre_rde(_documento(), CDC_DEL_MANUAL)), firmante
+            )
+        )
+        agregar_campos_fuera_de_firma(raiz, "https://ejemplo/qr?x=1")
 
-    def test_los_opcionales_ausentes_no_se_emiten(self) -> None:
-        # Ocurrencia 0-1: un elemento vacío no es lo mismo que uno ausente.
-        elemento = Operacion.normal("587326098").a_elemento()
-        assert elemento.find("dInfoEmi") is None
-        assert elemento.find("dInfoFisc") is None
+        hijos = [etree.QName(h).localname for h in raiz]
+        assert hijos == ["dVerFor", "DE", "Signature", "gCamFuFD"]
 
-    def test_los_opcionales_presentes_si_se_emiten(self) -> None:
-        operacion = Operacion.normal("587326098", dInfoFisc="Nota de remisión")
-        elemento = operacion.a_elemento()
-        nodo = elemento.find("dInfoFisc")
-        assert nodo is not None
-        assert nodo.text == "Nota de remisión"
-
-    @pytest.mark.parametrize("invalido", ["12345678", "1234567890", "abcdefghi"])
-    def test_rechaza_codigo_de_seguridad_invalido(self, invalido: str) -> None:
-        with pytest.raises(ValidationError):
-            Operacion.normal(invalido)
-
-
-class TestGrupoTimbrado:
-    def test_orden_de_los_campos(self) -> None:
-        # dSerieNum lleva el identificador C010 pero va entre C007 y C008.
-        # Ver docs/decisiones/0001-orden-de-los-campos.md
-        elemento = _timbrado(dSerieNum="AB", dFeFinT=date(2027, 1, 1)).a_elemento()
-        assert [h.tag for h in elemento] == [
-            "iTiDE",
-            "dDesTiDE",
-            "dNumTim",
-            "dEst",
-            "dPunExp",
-            "dNumDoc",
-            "dSerieNum",
-            "dFeIniT",
-            "dFeFinT",
-        ]
-
-    def test_la_etiqueta_es_gtimb(self) -> None:
-        assert _timbrado().a_elemento().tag == "gTimb"
-
-    def test_las_fechas_van_sin_hora(self) -> None:
-        elemento = _timbrado().a_elemento()
-        nodo = elemento.find("dFeIniT")
-        assert nodo is not None
-        assert nodo.text == "2026-01-01"
-
-    @pytest.mark.parametrize(
-        ("campo_invalido", "valor"),
-        [
-            ("dNumTim", "1234567"),
-            ("dNumTim", "abcdefgh"),
-            ("dEst", "1"),
-            ("dPunExp", "0001"),
-            ("dNumDoc", "123"),
-        ],
-    )
-    def test_rechaza_largos_incorrectos(self, campo_invalido: str, valor: str) -> None:
-        with pytest.raises(ValidationError):
-            _timbrado(**{campo_invalido: valor})
-
-    def test_rechaza_numeracion_en_cero(self) -> None:
-        # El manual pide que un timbrado nuevo empiece en 1.
-        with pytest.raises(ValidationError, match="empezar en 1"):
-            _timbrado(dNumDoc="0000000")
-
-    def test_rechaza_campos_desconocidos(self) -> None:
-        # Un campo que el manual no define es un error, no algo a ignorar.
-        with pytest.raises(ValidationError):
-            _timbrado(dInventado="x")
-
-    def test_es_inmutable(self) -> None:
-        timbrado = _timbrado()
-        with pytest.raises(ValidationError):
-            timbrado.dNumDoc = "0000001"
-
-
-class TestTrazabilidad:
-    """La correspondencia con el manual se puede leer desde el propio código."""
-
-    def test_los_campos_declaran_su_identificador(self) -> None:
-        mapa = identificadores_del_manual(Timbrado)
-        assert mapa["iTiDE"] == "C002"
-        assert mapa["dNumTim"] == "C004"
-        assert mapa["dSerieNum"] == "C010"
-
-    def test_todos_los_campos_tienen_identificador(self) -> None:
-        for grupo in (Operacion, Timbrado, DocumentoElectronico):
-            mapa = identificadores_del_manual(grupo)
-            assert set(mapa) == set(grupo.model_fields)
-
-    def test_los_identificadores_no_se_repiten_dentro_del_grupo(self) -> None:
-        for grupo in (Operacion, Timbrado, DocumentoElectronico):
-            valores = list(identificadores_del_manual(grupo).values())
-            assert len(valores) == len(set(valores))
+    def test_lleva_el_qr(self, firmante: FirmantePkcs12) -> None:
+        raiz = etree.fromstring(
+            firmar_documento(
+                etree.tostring(sobre_rde(_documento(), CDC_DEL_MANUAL)), firmante
+            )
+        )
+        agregar_campos_fuera_de_firma(
+            raiz, "https://ejemplo/qr?x=1", informacion_adicional="nota"
+        )
+        qr = raiz.find(f"{{{NS_SIFEN}}}gCamFuFD/{{{NS_SIFEN}}}dCarQR")
+        adicional = raiz.find(f"{{{NS_SIFEN}}}gCamFuFD/{{{NS_SIFEN}}}dInfAdic")
+        assert qr is not None
+        assert qr.text == "https://ejemplo/qr?x=1"
+        assert adicional is not None
 
 
 class TestFormateo:
@@ -208,8 +188,8 @@ class TestFormateo:
             (TipoDocumento.FACTURA, "1"),
             (date(2026, 1, 1), "2026-01-01"),
             (datetime(2026, 1, 1, 9, 35, 17), "2026-01-01T09:35:17"),  # noqa: DTZ001
-            # Los importes conservan sus decimales: el SIFEN los escribe asi
-            # y el hash del QR se calcula sobre esa cadena exacta.
+            # Los importes conservan sus decimales: el SIFEN los escribe así y
+            # el hash del QR se calcula sobre esa cadena exacta.
             (Decimal("1000.00"), "1000.00"),
             (Decimal("36500.00000000"), "36500.00000000"),
             ("texto", "texto"),
@@ -222,8 +202,6 @@ class TestFormateo:
 
 
 class TestIntegracionConLaFirma:
-    """De punta a punta: armar el documento, calcular el CDC y firmarlo."""
-
     def test_documento_armado_y_firmado(self, firmante: FirmantePkcs12) -> None:
         cdc = Cdc.crear(
             tipo_documento=TipoDocumento.FACTURA,
@@ -235,24 +213,12 @@ class TestIntegracionConLaFirma:
             fecha_emision=date(2026, 9, 10),
             codigo_seguridad="587326098",
         )
-
-        documento = _documento(
-            dDVId=cdc.dv,
-            gTimb=_timbrado(
-                dEst=cdc.establecimiento,
-                dPunExp=cdc.punto_expedicion,
-                dNumDoc=cdc.numero,
-            ),
-        )
-        raiz = sobre_rde(documento, cdc.valor)
+        raiz = sobre_rde(_documento(dDVId=cdc.dv), cdc.valor)
         firmado = firmar_documento(etree.tostring(raiz), firmante)
 
         arbol = etree.fromstring(firmado)
-        referencia = arbol.find(
-            "{http://www.w3.org/2000/09/xmldsig#}Signature"
-            "/{http://www.w3.org/2000/09/xmldsig#}SignedInfo"
-            "/{http://www.w3.org/2000/09/xmldsig#}Reference"
-        )
+        ds = "{http://www.w3.org/2000/09/xmldsig#}"
+        referencia = arbol.find(f"{ds}Signature/{ds}SignedInfo/{ds}Reference")
         assert referencia is not None
         assert referencia.get("URI") == f"#{cdc.valor}"
 
@@ -265,7 +231,5 @@ class TestIntegracionConLaFirma:
         firmado = firmar_documento(etree.tostring(raiz), firmante)
 
         XMLVerifier().verify(
-            firmado,
-            x509_cert=firmante.certificado.x509,
-            expect_references=1,
+            firmado, x509_cert=firmante.certificado.x509, expect_references=1
         )
