@@ -149,6 +149,11 @@ jobs:
           cache-from: type=gha
 
       - name: Actualizar la descripción del repositorio
+        # Es cosmético: si Docker Hub lo rechaza, la imagen ya está publicada
+        # y no corresponde marcar la publicación como fallida. Docker Hub
+        # exige para esto un token con alcance "Read, Write, Delete"; con uno
+        # de sólo "Read & Write" contesta Forbidden.
+        continue-on-error: true
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}

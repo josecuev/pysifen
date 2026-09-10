@@ -32,7 +32,7 @@ jobs:
           poetry check --lock
 
       - name: Instalar
-        run: poetry install --with dev,test --no-interaction
+        run: poetry install --with dev,test --all-extras --no-interaction
 
       - name: Calidad
         run: |
