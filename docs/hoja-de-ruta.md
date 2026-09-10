@@ -9,7 +9,7 @@ cuando se puede demostrar, no cuando parece que sí.
 
 ## Dónde estamos
 
-### 0.5.0 — leer y verificar de verdad (actual)
+### 0.6.0 — leer y verificar de verdad (actual)
 
 Lo que hay hoy:
 
@@ -25,11 +25,12 @@ Lo que hay hoy:
 | Lectura de certificados y prestadores cualificados | Probada contra un certificado real |
 | Cadena de confianza hasta la Raíz del Paraguay | 5 certificados reales encadenan; un autofirmado que dice ser de DOCUMENTA se rechaza |
 | Lectura completa del documento a los modelos | 4 documentos reales dan la vuelta sin perder nada |
+| Revocación (OCSP con respaldo en CRL) | Los 4 certificados reales consultados contra sus prestadores |
 | Servidor MCP sin estado | 6 herramientas, stdio y Streamable HTTP |
 | Imagen de Docker | 165 MB, sin root, sin vulnerabilidades con arreglo |
 | Línea de comandos | Operación y auto-descripción |
 
-Lo que **no** hay: revocación, transmitir.
+Lo que **no** hay: transmitir.
 
 ## Lo que falta
 
@@ -98,13 +99,24 @@ tipado como entero, y el esquema lo declara `xs:integer` con `pattern
 válido y `166795` no: la librería podía producir un XML que el SIFEN rechaza.
 Son ocho los campos así, y ahora van como cadena.
 
-### 0.6.0 — revocación
-
-Consultar la lista de certificados revocados del prestador. Es la única
-comprobación que necesita red, así que va explícita y nunca por omisión.
+### 0.6.0 — revocación ✔
 
 **Criterio**: un certificado revocado se detecta; sin red, se informa que no se
 pudo comprobar en vez de darlo por bueno.
+
+**Cumplido.** `verificar_documento(xml, revocacion=True)` pregunta por OCSP y,
+si el respondedor no contesta, baja la lista de revocados. Las direcciones salen
+del propio certificado —extensiones AIA y CRL Distribution Points— así que un
+prestador nuevo funciona sin tocar código.
+
+Lo que hace que esto valga algo no es saber preguntar sino **no creer
+cualquier respuesta**: se verifica la firma de la respuesta OCSP, y que la haya
+firmado el emisor o un respondedor que él delegó con `id-kp-OCSPSigning`, como
+manda el RFC 6960. La CRL se verifica contra la clave del emisor antes de
+mirarla. Si algo no cierra, el resultado es **desconocido**, nunca "vigente".
+
+Los cuatro certificados reales se consultaron contra los respondedores de
+DOCUMENTA y de ITTI: los cuatro vigentes, en 2,1 segundos para el lote.
 
 ### 1.0.0 — leer y validar, al 100%
 
@@ -113,12 +125,13 @@ pudo comprobar en vez de darlo por bueno.
 - [x] 0.3.0 — cadena de confianza.
 - [x] 0.4.0 — firmas reales explicadas.
 - [x] 0.5.0 — lectura completa a modelos.
-- [ ] 0.6.0 — revocación.
-- [ ] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
+- [x] 0.6.0 — revocación.
+- [x] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
       firma, revocación, coherencia de CDC y QR.
 - [ ] Documentos reales de emisores distintos verificados correctamente.
 - [x] `confiable` significa **auténtico**, no "las comprobaciones que sé hacer
-      pasaron". Falta sólo la revocación, que se declara en cada respuesta.
+      pasaron". Con `revocacion=True` el resumen ya no declara **ningún**
+      límite.
 - [ ] La API pública de lectura, estable.
 
 A partir de acá, un cambio incompatible en la API de lectura obliga a subir la

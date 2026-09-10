@@ -10,7 +10,8 @@ Por qué es stateless
 
 No guarda nada entre llamadas: cada herramienta recibe el documento, lo
 procesa y devuelve el resultado. No hay sesión, ni caché de documentos, ni
-estado compartido entre pedidos.
+estado compartido entre pedidos. Tampoco sale a la red, salvo que se le pida la
+consulta de revocación.
 
 Eso no es una simplificación sino lo que corresponde. La revisión 2026-07-28
 del protocolo **eliminó las sesiones** del transporte HTTP, así que un servidor
@@ -127,7 +128,9 @@ def construir_servidor() -> Any:
 
     @servidor.tool()
     def verificar_factura(
-        xml: str | None = None, ruta: str | None = None
+        xml: str | None = None,
+        ruta: str | None = None,
+        revocacion: bool = False,
     ) -> dict[str, Any]:
         """Lee una factura electrónica y verifica si se puede confiar en ella.
 
@@ -135,8 +138,8 @@ def construir_servidor() -> Any:
         encadene hasta la Autoridad Certificadora Raíz del Paraguay por un
         prestador cualificado habilitado, que estuviera vigente al firmar, que
         el RUC del documento sea el del certificado, y que el CDC y el QR sean
-        coherentes. Lo único que no comprueba es la revocación, que necesita
-        red.
+        coherentes. Con revocacion=True consulta además que el prestador no lo
+        haya dado de baja, y ahí no queda nada sin verificar.
 
         Devuelve una versión compacta del documento con el veredicto adelante.
         La clave 'confiable' es la que decide si el resto se puede usar.
@@ -144,17 +147,24 @@ def construir_servidor() -> Any:
         Args:
             xml: el documento como texto. Excluyente con 'ruta'.
             ruta: la ruta a un archivo .xml. Excluyente con 'xml'.
+            revocacion: si consultar al prestador que el certificado no esté
+                dado de baja. Es la única comprobación que sale a la red, por
+                eso está apagada. Con ella el veredicto no deja nada sin
+                verificar; sin ella, la respuesta lo declara en
+                'limite_de_la_verificacion'.
         """
         try:
             crudo = _leer_entrada(xml, ruta)
         except SifenError as error:
             return _fallo(str(error))
 
-        resultado = verificar_documento(crudo, lista=anclas)
+        resultado = verificar_documento(crudo, lista=anclas, revocacion=revocacion)
         return {"ok": True} | resultado.resumir()
 
     @servidor.tool()
-    def verificar_facturas(rutas: list[str]) -> dict[str, Any]:
+    def verificar_facturas(
+        rutas: list[str], revocacion: bool = False
+    ) -> dict[str, Any]:
         """Verifica varias facturas de una vez, reutilizando el esquema.
 
         Más eficiente que llamar a verificar_factura muchas veces: el esquema
@@ -162,6 +172,8 @@ def construir_servidor() -> Any:
 
         Args:
             rutas: las rutas de los archivos .xml a verificar.
+            revocacion: si consultar la revocación de cada certificado. Sale a
+                la red una vez por documento, así que en un lote grande cuesta.
         """
         if not rutas:
             return _fallo("no se pasó ninguna ruta")
@@ -175,7 +187,7 @@ def construir_servidor() -> Any:
             except SifenError as error:
                 informes.append({"ruta": ruta, "ok": False, "error": str(error)})
                 continue
-            resultado = verificar_documento(crudo, lista=anclas)
+            resultado = verificar_documento(crudo, lista=anclas, revocacion=revocacion)
             informes.append({"ruta": ruta} | resultado.resumir())
 
         confiables = sum(1 for i in informes if i.get("confiable"))

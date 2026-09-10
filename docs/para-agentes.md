@@ -24,9 +24,10 @@ Tres cosas que conviene saber antes de usar el resultado:
    cadena de confianza hasta la Autoridad Certificadora Raíz del Paraguay,
    vigencia a la firma, RUC, CDC y QR. Cualquier comprobación que no se pueda
    hacer cuenta como fallada.
-2. **`resumir()` declara su propio límite**, en `limite_de_la_verificacion`. Hoy
-   dice que no se consulta la revocación. Leelo y pasalo adelante: si informás
-   un veredicto sin su límite, estás afirmando más de lo que se comprobó.
+2. **`resumir()` declara su propio límite**, en `limite_de_la_verificacion`.
+   Leelo y pasalo adelante: si informás un veredicto sin su límite, estás
+   afirmando más de lo que se comprobó. Cuando la clave **no aparece**, es
+   porque no quedó nada sin verificar.
 3. **`tolerancias` no está vacío gratis.** Si tiene algo, la firma verificó pero
    el documento no era estrictamente conforme al estándar. No es motivo de
    alarma —son desvíos conocidos de emisores reales— pero quien audita tiene
@@ -45,6 +46,18 @@ de.gTotSub.dTotGralOpe  # Decimal, con la escala del original
 Devuelve los 49 grupos con tipos de Python, no cadenas: `Decimal` para los
 importes, `date` y `datetime` para las fechas. Y **rechaza** un documento con un
 elemento que el esquema no declara, en vez de ignorarlo.
+
+### La revocación se pide aparte
+
+```python
+resultado = verificar_documento(xml_recibido, revocacion=True)
+```
+
+Es la única comprobación que **sale a la red**. Con ella el veredicto no deja
+nada afuera; sin ella, `limite_de_la_verificacion` lo dice.
+
+Si vas a procesar un lote, tené presente que es una consulta por documento.
+`leer_documentos(rutas, revocacion=True)` también la acepta.
 
 No hace falta certificado propio ni estar habilitado como facturador para nada
 de esto.

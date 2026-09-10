@@ -20,6 +20,7 @@ Vigencia a la firma        Un certificado vencido *cuando se firmó*
 RUC del certificado        Un documento firmado por otro contribuyente
 Coherencia del CDC         Un CDC inventado o mal calculado
 Coherencia del QR          Un QR que no corresponde al documento
+Revocación (opcional)      Un certificado que el prestador dio de baja
 =========================  =========================================
 
 Sobre la vigencia: lo que importa es que el certificado estuviera vigente **al
@@ -27,17 +28,22 @@ momento de la firma**, no hoy. Un certificado que venció el mes pasado no
 invalida los documentos que firmó cuando estaba vigente. El apartado 7.8 del
 Manual Técnico lo dice así.
 
-Qué queda fuera
----------------
+La consulta de revocación
+-------------------------
 
-La consulta de la lista de certificados revocados. Es la única comprobación que
-necesita salir a la red del prestador, así que va aparte y nunca por omisión:
-una llamada de red silenciosa dentro de lo que parece una función local es una
-sorpresa desagradable.
+Es la única comprobación que necesita **salir a la red** del prestador, así que
+no se hace por omisión: una llamada de red silenciosa dentro de lo que parece
+una función local es una sorpresa desagradable. Se pide explícitamente::
 
-Un certificado revocado con cadena válida se reporta como confiable. Para el
-caso habitual —verificar una factura recibida— eso alcanza; para un uso donde
-la revocación importe, hay que consultarla aparte.
+    verificar_documento(recibido, revocacion=True)
+
+Con eso el informe queda completo y ``confiable`` no tiene ningún hueco. Sin
+eso, un certificado revocado con todo lo demás en orden se informa como
+confiable, y el resumen lo declara en ``limite_de_la_verificacion``.
+
+Lo que importa es si el certificado estaba revocado **cuando se firmó**, no si
+lo está hoy: un certificado dado de baja el mes pasado no invalida lo que firmó
+antes. Se evalúa contra la fecha de firma del documento.
 """
 
 from __future__ import annotations
@@ -60,6 +66,11 @@ from pysifen.pki.cadena import (
     validar_cadena,
 )
 from pysifen.pki.certificado import Certificado
+from pysifen.pki.revocacion import (
+    EstadoDeRevocacion,
+    ResultadoDeRevocacion,
+    consultar_revocacion,
+)
 from pysifen.signing.verificacion import ResultadoDeFirma, verificar_firma
 from pysifen.validacion import validar_documento
 
@@ -107,6 +118,8 @@ class Verificacion:
     cdc_coherente: bool | None = None
     qr_coherente: bool | None = None
 
+    revocacion: ResultadoDeRevocacion | None = None
+
     observaciones: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -122,6 +135,15 @@ class Verificacion:
     def cadena_valida(self) -> bool:
         """``True`` si el certificado encadena hasta una raíz reconocida."""
         return self.cadena is not None and self.cadena.valida
+
+    @property
+    def certificado_revocado(self) -> bool:
+        """``True`` sólo si el prestador confirmó que lo dio de baja.
+
+        ``False`` cuando no se consultó: no poder comprobar no es lo mismo que
+        comprobar que está bien, y por eso el resumen declara si se consultó.
+        """
+        return self.revocacion is not None and self.revocacion.revocado
 
     @property
     def firma_valida(self) -> bool:
@@ -141,8 +163,9 @@ class Verificacion:
         significa que no se pudo verificar, y lo que no se pudo verificar no se
         da por bueno.
 
-        Lo único que no cubre es la revocación del certificado, que necesita
-        red. Ver el encabezado del módulo.
+        La revocación sólo se comprueba si se pidió, porque necesita red. Si
+        se pidió y el certificado está revocado, esto es ``False``. Ver el
+        encabezado del módulo.
         """
         return (
             self.esquema_valido
@@ -152,6 +175,7 @@ class Verificacion:
             and self.ruc_coincide is True
             and self.cdc_coherente is True
             and self.qr_coherente is not False
+            and not self.certificado_revocado
         )
 
     def resumir(self) -> dict[str, Any]:
@@ -186,13 +210,24 @@ class Verificacion:
                 "ruc_coincide_con_el_certificado": self.ruc_coincide,
                 "cdc_coherente": self.cdc_coherente,
                 "qr_coherente": self.qr_coherente,
+                "revocacion": self.revocacion.estado.value
+                if self.revocacion
+                else "no consultada",
             },
         }
-        resumen["limite_de_la_verificacion"] = (
-            "no se consulta la lista de certificados revocados, que requiere "
-            "red. Todo lo demás está verificado, incluida la cadena de "
-            "confianza hasta la Autoridad Certificadora Raíz del Paraguay."
-        )
+        if self.revocacion is None:
+            resumen["limite_de_la_verificacion"] = (
+                "no se consultó la lista de certificados revocados, que "
+                "requiere red. Todo lo demás está verificado, incluida la "
+                "cadena de confianza hasta la Autoridad Certificadora Raíz "
+                "del Paraguay. Para cerrar también eso: "
+                "verificar_documento(xml, revocacion=True)."
+            )
+        elif self.revocacion.estado is EstadoDeRevocacion.DESCONOCIDO:
+            resumen["limite_de_la_verificacion"] = (
+                f"se consultó la revocación y no se pudo averiguar: "
+                f"{self.revocacion.motivo}"
+            )
         if self.tolerancias:
             resumen["tolerancias"] = list(self.tolerancias)
         if self.observaciones:
@@ -220,6 +255,8 @@ class Verificacion:
             f"  firma         {'válida' if self.firma_valida else 'INVÁLIDA'}"
         )
         lineas.append(f"  prestador     {self.prestador or 'NO IDENTIFICADO'}")
+        if self.revocacion is not None:
+            lineas.append(f"  revocación    {self.revocacion.estado.value}")
         for tolerancia in self.tolerancias:
             lineas.append(f"  ~ toleró: {tolerancia}")
         for observacion in self.observaciones:
@@ -232,6 +269,7 @@ def verificar_documento(
     *,
     lista: ListaDeConfianza | None = None,
     validar_esquema: bool = True,
+    revocacion: bool = False,
 ) -> Verificacion:
     """Lee un documento recibido y verifica todo lo que se pueda verificar.
 
@@ -242,6 +280,8 @@ def verificar_documento(
             omisión, la Lista de Confianza que trae la librería.
         validar_esquema: si comprobar el documento contra el XSD oficial. Se
             puede apagar al procesar lotes grandes donde ya se validó antes.
+        revocacion: si consultar al prestador que el certificado no esté dado
+            de baja. **Sale a la red**, por eso está apagado por omisión.
 
     Returns:
         El informe. No lanza por un documento adulterado o mal formado: eso es
@@ -276,6 +316,12 @@ def verificar_documento(
     ruc_certificado = certificado.ruc if certificado else None
     ruc_coincide = _comparar_rucs(datos.get("ruc"), ruc_certificado, observaciones)
 
+    resultado_revocacion = (
+        _consultar_revocacion(certificado, raiz, lista, observaciones)
+        if revocacion
+        else None
+    )
+
     return Verificacion(
         cdc=datos.get("cdc"),
         tipo_documento=datos.get("tipo"),
@@ -291,6 +337,7 @@ def verificar_documento(
         certificado_vigente_a_la_firma=vigente,
         ruc_del_certificado=ruc_certificado,
         ruc_coincide=ruc_coincide,
+        revocacion=resultado_revocacion,
         cdc_coherente=_coherencia_del_cdc(datos.get("cdc"), observaciones),
         qr_coherente=_coherencia_del_qr(raiz, datos, observaciones),
         observaciones=tuple(observaciones),
@@ -301,6 +348,7 @@ def leer_documentos(
     rutas: list[Path] | list[str],
     *,
     lista: ListaDeConfianza | None = None,
+    revocacion: bool = False,
 ) -> list[Verificacion]:
     """Verifica varios documentos reutilizando el esquema ya compilado.
 
@@ -312,6 +360,8 @@ def leer_documentos(
         rutas: los archivos a verificar.
         lista: las anclas de confianza. Por omisión se lee una vez y se
             reutiliza.
+        revocacion: si consultar la revocación de cada certificado. **Sale a la
+            red una vez por documento**, por eso está apagado por omisión.
 
     Returns:
         Un informe por documento, en el mismo orden.
@@ -327,7 +377,9 @@ def leer_documentos(
                 Verificacion(observaciones=(f"no pude leer {camino}: {exc}",))
             )
             continue
-        informes.append(verificar_documento(contenido, lista=anclas))
+        informes.append(
+            verificar_documento(contenido, lista=anclas, revocacion=revocacion)
+        )
     return informes
 
 
@@ -404,6 +456,32 @@ def _validar_cadena(
     resultado = validar_cadena(certificado, lista=anclas, momento=_fecha_de_firma(raiz))
     if not resultado.valida and resultado.motivo:
         observaciones.append(f"la cadena de confianza no cierra: {resultado.motivo}")
+    return resultado
+
+
+def _consultar_revocacion(
+    certificado: Certificado | None,
+    raiz: etree._Element,
+    lista: ListaDeConfianza | None,
+    observaciones: list[str],
+) -> ResultadoDeRevocacion | None:
+    """Pregunta al prestador si el certificado seguía vigente al firmarse."""
+    if certificado is None:
+        return None
+
+    resultado = consultar_revocacion(
+        certificado, lista=lista, momento=_fecha_de_firma(raiz)
+    )
+    if resultado.revocado:
+        cuando = (
+            f" el {resultado.revocado_el:%d/%m/%Y}" if resultado.revocado_el else ""
+        )
+        observaciones.append(
+            f"el prestador revocó el certificado{cuando}"
+            + (f" por {resultado.razon}" if resultado.razon else "")
+        )
+    elif resultado.estado is EstadoDeRevocacion.DESCONOCIDO:
+        observaciones.append(f"no se pudo consultar la revocación: {resultado.motivo}")
     return resultado
 
 

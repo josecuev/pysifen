@@ -124,7 +124,8 @@ tributario en XML ocupa unos 10 KB; esto suele quedar en menos de 500 bytes:
     "certificado_vigente_al_firmar": true,
     "ruc_coincide_con_el_certificado": true,
     "cdc_coherente": true,
-    "qr_coherente": true
+    "qr_coherente": true,
+    "revocacion": "no consultada"
   },
   "limite_de_la_verificacion": "no se consulta la lista de certificados
   revocados, que requiere red. Todo lo demás está verificado, incluida la
@@ -147,6 +148,7 @@ pueda comprobar cuenta como que no pasó:
 | Esquema | Que el documento tiene la estructura oficial |
 | Firma | Que **ni un carácter** cambió desde que se firmó |
 | Cadena de confianza | Que el certificado lo emitió de verdad un prestador cualificado habilitado, hasta la Autoridad Certificadora Raíz del Paraguay |
+| Revocación (a pedido) | Que el prestador no lo haya dado de baja |
 | Vigencia a la firma | Que el certificado estaba vigente *cuando se firmó*, no hoy |
 | RUC | Que el documento no lo firmó otro contribuyente |
 | CDC y QR | Que el código de control y el QR corresponden al documento |
@@ -159,13 +161,30 @@ DOCUMENTA firmó de verdad se acepta. Ver
 
   [tsl]: https://www.acraiz.gov.py/tsl/tsl_Py.xml
 
-!!! warning "Lo único que queda afuera: la revocación"
-    No se consulta la lista de certificados revocados del prestador, porque es
-    la única comprobación que necesita salir a la red. Un certificado revocado
-    con cadena válida se informa hoy como confiable.
+### La revocación se pide
 
-    Por eso cada respuesta incluye `limite_de_la_verificacion`, para que quien
-    la lea —persona o modelo— sepa exactamente qué no se comprobó.
+Es la única comprobación que **sale a la red**, así que está apagada por
+omisión: una llamada de red silenciosa dentro de lo que parece una consulta
+local es una sorpresa desagradable, y este servidor no sale a internet salvo que
+se le pida.
+
+```json
+{"name": "verificar_factura", "arguments": {"xml": "...", "revocacion": true}}
+```
+
+Con eso la respuesta **no trae `limite_de_la_verificacion`**: no queda nada sin
+verificar. Sin eso, la clave aparece y dice exactamente qué falta.
+
+Se pregunta por OCSP y, si el respondedor no contesta, se baja la lista de
+revocados. Las direcciones salen del propio certificado, así que un prestador
+nuevo funciona sin tocar nada.
+
+!!! danger "Una respuesta sin verificar no vale nada"
+    Cualquiera que intercepte la conexión podría contestar "vigente". Por eso se
+    comprueba la firma de la respuesta OCSP, y que la haya firmado el emisor o
+    un respondedor que él delegó con `id-kp-OCSPSigning`. Si algo no cierra, el
+    resultado es **desconocido**, nunca "vigente": no poder comprobar no es lo
+    mismo que comprobar que está bien.
 
 ## Por qué verificar si el SIFEN ya aprobó el documento
 

@@ -295,8 +295,12 @@ class TestResumenParaModelos:
     def test_es_mucho_mas_chico_que_el_xml(
         self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
     ) -> None:
+        # Sin validar el esquema a proposito: el documento de prueba es minimo
+        # y no valida, asi que su resumen se llenaria del volcado de errores y
+        # se estaria midiendo eso en vez del resumen. Sobre documentos reales la
+        # relacion es de 8 a 11 veces.
         firmado = _documento_firmado(firmante)
-        resumen = verificar(firmado).resumir()
+        resumen = verificar(firmado, validar_esquema=False).resumir()
         import json
 
         texto = json.dumps(resumen, ensure_ascii=False)
@@ -507,3 +511,106 @@ class TestRucDelCertificado:
         assert resultado.ruc_coincide is False
         assert resultado.confiable is False
         assert any("RUC" in o for o in resultado.observaciones)
+
+
+class TestRevocacion:
+    """La única comprobación que sale a la red, y por eso hay que pedirla.
+
+    Acá no se sale a la red: se sustituye el resultado de la consulta y se
+    comprueba qué hace el informe con cada veredicto.
+    """
+
+    def test_por_omision_no_se_consulta(
+        self, firmante: FirmantePkcs12, verificar: Callable[..., Verificacion]
+    ) -> None:
+        # Lo importante es que NO haya llamada de red sin pedirlo.
+        resultado = verificar(_documento_firmado(firmante), validar_esquema=False)
+
+        assert resultado.revocacion is None
+        assert resultado.certificado_revocado is False
+        assert "no se consultó" in resultado.resumir()["limite_de_la_verificacion"]
+
+    def test_un_certificado_revocado_no_es_confiable(
+        self,
+        firmante: FirmantePkcs12,
+        anclas_de_prueba: ListaDeConfianza,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from datetime import UTC
+
+        from pysifen.pki.revocacion import EstadoDeRevocacion, ResultadoDeRevocacion
+
+        monkeypatch.setattr(
+            "pysifen.lectura.consultar_revocacion",
+            lambda *a, **k: ResultadoDeRevocacion(
+                EstadoDeRevocacion.REVOCADO,
+                fuente="OCSP",
+                revocado_el=datetime(2026, 1, 1, tzinfo=UTC),
+                razon="KEY_COMPROMISE",
+            ),
+        )
+
+        resultado = verificar_documento(
+            _documento_firmado(firmante),
+            lista=anclas_de_prueba,
+            validar_esquema=False,
+            revocacion=True,
+        )
+
+        assert resultado.certificado_revocado is True
+        assert resultado.confiable is False
+        assert any("revocó el certificado" in o for o in resultado.observaciones)
+        assert resultado.resumir()["verificacion"]["revocacion"] == "revocado"
+        assert "revocación" in resultado.informe()
+
+    def test_una_consulta_que_no_se_pudo_hacer_se_declara(
+        self,
+        firmante: FirmantePkcs12,
+        anclas_de_prueba: ListaDeConfianza,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # No poder comprobar no es comprobar que está bien: el resumen lo dice.
+        from pysifen.pki.revocacion import EstadoDeRevocacion, ResultadoDeRevocacion
+
+        monkeypatch.setattr(
+            "pysifen.lectura.consultar_revocacion",
+            lambda *a, **k: ResultadoDeRevocacion(
+                EstadoDeRevocacion.DESCONOCIDO, motivo="el respondedor no contesta"
+            ),
+        )
+
+        resultado = verificar_documento(
+            _documento_firmado(firmante),
+            lista=anclas_de_prueba,
+            validar_esquema=False,
+            revocacion=True,
+        )
+
+        assert resultado.certificado_revocado is False
+        assert (
+            "no se pudo averiguar" in resultado.resumir()["limite_de_la_verificacion"]
+        )
+        assert any("no se pudo consultar" in o for o in resultado.observaciones)
+
+    def test_un_lote_tambien_puede_consultarla(
+        self,
+        firmante: FirmantePkcs12,
+        anclas_de_prueba: ListaDeConfianza,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from pysifen.pki.revocacion import EstadoDeRevocacion, ResultadoDeRevocacion
+
+        monkeypatch.setattr(
+            "pysifen.lectura.consultar_revocacion",
+            lambda *a, **k: ResultadoDeRevocacion(
+                EstadoDeRevocacion.VIGENTE, fuente="OCSP"
+            ),
+        )
+        archivo = tmp_path / "documento.xml"
+        archivo.write_bytes(_documento_firmado(firmante))
+
+        informes = leer_documentos([archivo], lista=anclas_de_prueba, revocacion=True)
+
+        assert informes[0].revocacion is not None
+        assert informes[0].revocacion.estado is EstadoDeRevocacion.VIGENTE
