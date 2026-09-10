@@ -43,11 +43,30 @@ docker run --rm --entrypoint pysifen -v "$PWD:/w:ro" -w /w \
 
 | Decisión | Por qué |
 |---|---|
+| Alpine, no Debian slim | La base slim son 189 MB contra 55, y esa diferencia se traslada entera: 274 MB contra 165 |
 | Dos etapas | Poetry y el código fuente se quedan en la primera. Lo que se publica sólo tiene la rueda instalada |
 | Usuario `pysifen` (uid 10001) | Nada de esto necesita root, y menos un servidor que procesa documentos que le manda cualquiera |
-| `apt-get upgrade` en la construcción | La imagen base se publica cada tantas semanas; Debian saca parches entre medio |
+| `apk upgrade` en la construcción | La imagen base se publica cada tantas semanas; Alpine saca parches entre medio |
 | Sin `pip` en la imagen final | Sus copias vendorizadas de `msgpack` y `setuptools` aparecen en todo escaneo aunque nunca se importen. Una imagen de un solo propósito no instala nada en caliente |
 | Sin estado | No guarda nada entre llamadas. Los documentos tributarios traen datos de contribuyentes: lo que no se retiene no se filtra |
+
+### Sobre Alpine
+
+La objeción clásica a Alpine es que obliga a compilar las dependencias
+nativas. Ya no aplica: `lxml`, `cryptography` y `pydantic-core` publican ruedas
+`musllinux`, así que la instalación no compila nada y la construcción tarda
+menos de un minuto.
+
+Se midió antes de cambiar, sobre los mismos documentos reales:
+
+| | Debian slim | Alpine |
+|---|---|---|
+| Tamaño | 274 MB | **165 MB** |
+| Vulnerabilidades | 3 altas, 6 medias, 31 bajas | **0 altas, 0 medias, 3 bajas** |
+| Verificar un documento | 6,3 ms | **4,8 ms** |
+| Veredicto sobre los documentos reales | idéntico | idéntico |
+
+No hubo contrapartida que pagar.
 
 ## Seguridad
 

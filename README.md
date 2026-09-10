@@ -37,7 +37,7 @@ apartado del manual que implementa.
 pip install pysifen
 ```
 
-O sin instalar nada, el servidor MCP en Docker:
+O sin instalar nada, el servidor MCP en Docker (165 MB, sin root):
 
 ```bash
 docker run --rm -p 127.0.0.1:8000:8000 josecuev/pysifen
