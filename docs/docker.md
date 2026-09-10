@@ -68,6 +68,31 @@ Se midió antes de cambiar, sobre los mismos documentos reales:
 
 No hubo contrapartida que pagar.
 
+### Hasta dónde se puede achicar
+
+Los 165 MB son lo que ocupa **descomprimida en disco**. Lo que `docker pull`
+transfiere son **40,8 MB**, que es el número que le importa a quien la baja.
+
+De esos 165, unos 121 son la base `python:3.13-alpine` —Python mismo son 47— y
+44 son las dependencias del proyecto. Adentro de esos 44 mandan `cryptography`
+(15 MB), `lxml` (12) y `pydantic` con su núcleo (9). Ninguna se puede cambiar
+por algo más chico sin perder lo que hace la librería: X.509 y RSA la primera,
+validación contra el XSD y canonicalización la segunda, los 49 grupos del
+documento la tercera.
+
+Se probaron tres recortes más y **los tres se descartaron con la medición
+hecha**:
+
+| Intento | Resultado |
+|---|---|
+| Borrar de la stdlib lo que no se usa (`idlelib`, `tkinter`, `ensurepip`) | **+11 MB.** Borrar un archivo que vive en una capa inferior no lo saca: agrega una marca de borrado y el archivo sigue ocupando lugar abajo |
+| `strip` a las extensiones nativas | **+3 MB.** Instalar `binutils` y reescribir los `.so` cuesta más de lo que ahorran los símbolos |
+| Instalar sin bytecode (`--no-compile`) | −15 MB en disco, pero sólo −1,9 MB de descarga, y el arranque pasa de 693 ms a 910 ms. Se paga en **cada** ejecución, y un servidor MCP por stdio arranca una vez por sesión |
+
+El último es el único que ahorraba algo de verdad, y aun así el precio es peor
+que el premio: 1,9 MB menos de descarga, una sola vez, a cambio de 217 ms más
+cada vez que alguien lo levanta.
+
 ## Seguridad
 
 Cada construcción se escanea con [Trivy](https://trivy.dev/) —vulnerabilidades,
