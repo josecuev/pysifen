@@ -48,6 +48,7 @@ from pysifen.security import (
     generar_codigo_seguridad,
     validar_codigo_seguridad,
 )
+from pysifen.validacion import validar_documento, validar_evento
 
 __version__ = "0.2.0.dev0"
 
@@ -71,4 +72,6 @@ __all__ = [
     "generar_codigo_seguridad",
     "generar_url_qr",
     "validar_codigo_seguridad",
+    "validar_documento",
+    "validar_evento",
 ]

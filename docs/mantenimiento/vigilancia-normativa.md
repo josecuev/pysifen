@@ -71,34 +71,54 @@ Hoy son **siete**. Cuando aparezca el octavo, se agrega una fábrica en
 falta tocar nada más: ver
 [Custodia del certificado](../seguridad/custodia.md).
 
-## 4. El XSD — la fuente que falta
+## 4. Los esquemas XSD — la fuente que más importa
 
-**El paquete que publica el portal está desactualizado.** `Estructura_DE xsd.rar`
-es de 2018 y describe nodos (`gCiODE`, `gDTim`, `gCamOC`) que ya no existen. No
-sirve.
+<https://ekuatia.set.gov.py/sifen/xsd/>
 
-Los WSDL de los servicios web **no se pueden consultar sin certificado**:
+**Es la fuente definitiva.** El XSD es contra lo que el SIFEN valida cada
+documento que recibe: si el Manual Técnico y el XSD se contradicen, gana el XSD.
+
+Los archivos publicados son once, encadenados por `xs:include`:
 
 ```
-https://sifen.set.gov.py/de/ws/sync/recibe.wsdl?wsdl        -> HTTP 302
-https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl?wsdl   -> HTTP 302
+siRecepDE_v150.xsd          wrapper de 395 bytes, declara <rDE>
+└── DE_v150.xsd             estructura completa del documento
+    ├── DE_Types_v150.xsd   tipos y enumeraciones
+    ├── Paises_v100.xsd
+    ├── Departamentos_v141.xsd
+    ├── Monedas_v150.xsd
+    └── Unidades_Medida_v141.xsd
+
+siRecepEvento_v150.xsd      wrapper, declara <gGroupGesEve>
+└── Evento_v150.xsd         todos los eventos en un solo archivo
+    └── Evento_Types_v150.xsd
 ```
 
-Están detrás del TLS mutuo que exige el apartado 7.9, así que tampoco se puede
-sacar el esquema de ahí.
+La librería trae copias **byte a byte idénticas** en
+`src/pysifen/esquemas/`, con sus checksums en `checksums.json`. El script
+compara las copias contra el servidor:
 
-Dónde conseguirlo entonces:
+```bash
+python scripts/verificar_esquemas.py
+```
 
-- **Del prestador o del proveedor de software habilitado.** A los integradores
-  certificados se les entrega el paquete de esquemas.
-- **Del ambiente de test**, una vez que se tenga un certificado habilitado. La
-  respuesta del SIFEN a un documento transmitido es la confirmación definitiva.
-- **De implementaciones ya en producción** en otros lenguajes, que suelen
-  incluir el XSD en su repositorio.
+Devuelve distinto de cero si algo cambió. El workflow de vigilancia lo corre
+todas las semanas.
 
-Mientras tanto, el orden de los campos de la factura electrónica está derivado
-de documentos reales; ver
-[Orden de los campos](../decisiones/0001-orden-de-los-campos.md).
+!!! danger "Dos copias que circulan y no sirven"
+    - **`Estructura_DE xsd.rar`** del portal de documentación técnica: es de
+      2018 y describe nodos (`gCiODE`, `gDTim`, `gCamOC`) que ya no existen.
+    - **El paquete `20190910_XSD_v150`** que aparece en repositorios públicos:
+      es la publicación original del v150 y no trae las enmiendas de las notas
+      técnicas. Se verificó que documentos reales de producción **no validan**
+      contra él: rechaza `dBasExe` (agregado por la NT-013), el grupo `gOblAfe`
+      y el valor `IVA - Renta` de `dDesTImp`.
+
+    Los esquemas del servidor en vivo sí validan documentos reales de 2026.
+
+Los WSDL de los servicios web, en cambio, **no** se pueden consultar: devuelven
+HTTP 302 sin certificado cliente, porque están detrás del TLS mutuo del
+apartado 7.9.
 
 ## 5. Servidores de hora
 
@@ -108,9 +128,10 @@ así que un reloj corrido produce rechazos difíciles de diagnosticar.
 
 ## Chequeo automático
 
-El workflow `.github/workflows/vigilancia.yml` corre cada lunes y avisa si
-aparece una nota técnica nueva o si cambia la página de documentación técnica.
-No reemplaza mirar, pero evita enterarse tarde.
+El workflow `.github/workflows/vigilancia.yml` corre cada lunes y abre un
+issue si aparece una nota técnica nueva, si cambia la versión del manual, o
+—lo más importante— **si cambia alguno de los esquemas publicados**. No
+reemplaza mirar, pero evita enterarse tarde.
 
 ## Resumen
 
@@ -121,3 +142,4 @@ No reemplaza mirar, pero evita enterarse tarde.
 | Resoluciones | `dnit.gov.py/web/portal-institucional/resoluciones` | RG 52/2026 |
 | Prestadores | `acraiz.gov.py/html/Certif_1PrestaServ.html` | 7 habilitados |
 | Versión real en uso | `schemaLocation` de cualquier DTE recibido | `siRecepDE_v150.xsd` |
+| **Esquemas XSD** | `ekuatia.set.gov.py/sifen/xsd/` | 11 archivos, verificados |

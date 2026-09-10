@@ -64,13 +64,30 @@ jobs:
           done
           echo "otras=${otra# }" >> "$GITHUB_OUTPUT"
 
+      - name: ¿Cambiaron los esquemas publicados?
+        id: esquemas
+        run: |
+          set -uo pipefail
+          pipx install poetry==2.4.3
+          poetry install --only main --no-interaction
+          if poetry run python scripts/verificar_esquemas.py; then
+            echo "cambiaron=" >> "$GITHUB_OUTPUT"
+          else
+            echo "cambiaron=si" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Abrir un issue si hay novedades
-        if: steps.notas.outputs.nuevas != '' || steps.manual.outputs.otras != ''
+        if: >-
+          steps.notas.outputs.nuevas != '' ||
+          steps.manual.outputs.otras != '' ||
+          steps.esquemas.outputs.cambiaron != ''
         uses: actions/github-script@v7
         with:
           script: |
             const notas = '${{ steps.notas.outputs.nuevas }}';
             const manual = '${{ steps.manual.outputs.otras }}';
+            const esquemas = '${{ steps.esquemas.outputs.cambiaron }}';
+            const salto = String.fromCharCode(10, 10);
             let cuerpo = 'La vigilancia semanal encontró novedades en las fuentes oficiales.\n\n';
             if (notas) {
               cuerpo += `**Notas técnicas nuevas:** ${notas}\n\n`;
@@ -80,6 +97,13 @@ jobs:
             if (manual) {
               cuerpo += `**Posible versión nueva del Manual Técnico:** ${manual}\n\n`;
               cuerpo += 'Verificar en el portal. Un cambio de versión mayor obliga a revisar todo.\n\n';
+            }
+            if (esquemas) {
+              cuerpo += '**Los esquemas XSD publicados cambiaron.**' + salto;
+              cuerpo += 'Esto es lo mas importante que puede pasar: el XSD es contra lo que ';
+              cuerpo += 'el SIFEN valida de verdad. Correr `python scripts/verificar_esquemas.py` ';
+              cuerpo += 'para ver cuales, bajar las versiones nuevas, regenerar el manifiesto ';
+              cuerpo += 'y revisar que cambio antes de publicar.' + salto;
             }
             cuerpo += 'Fuentes y procedimiento: `docs/mantenimiento/vigilancia-normativa.md`';
 
@@ -92,6 +116,9 @@ jobs:
             });
 
       - name: Sin novedades
-        if: steps.notas.outputs.nuevas == '' && steps.manual.outputs.otras == ''
+        if: >-
+          steps.notas.outputs.nuevas == '' &&
+          steps.manual.outputs.otras == '' &&
+          steps.esquemas.outputs.cambiaron == ''
         run: |
-          echo "Sin cambios: sigue el Manual Técnico v${VERSION_MANUAL} con la NT-${ULTIMA_NOTA_TECNICA}."
+          echo "Sin cambios: Manual Técnico v${VERSION_MANUAL}, NT-${ULTIMA_NOTA_TECNICA}, esquemas intactos."

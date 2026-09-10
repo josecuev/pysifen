@@ -1,7 +1,8 @@
 # 0001 · De dónde sale el orden de los campos del XML
 
 **Fecha**: 10 de setiembre de 2026
-**Estado**: aceptada
+**Estado**: superada en parte por el hallazgo del XSD de producción
+(ver [0003](0003-esquemas-oficiales.md))
 
 ## Contexto
 

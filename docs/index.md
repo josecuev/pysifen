@@ -23,7 +23,8 @@ Dirección Nacional de Ingresos Tributarios.
 | Código QR del KuDE | Listo |
 | Tablas de códigos del Manual Técnico | Parcial |
 | Armado del XML: sobre, operación y timbrado (AA, A, B, C) | Listo |
-| Armado del XML: datos generales, ítems y totales (D a J) | Pendiente |
+| Armado del XML: datos generales, ítems y totales (D a J) | En curso |
+| Validación contra el esquema oficial de la DNIT | Listo |
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
