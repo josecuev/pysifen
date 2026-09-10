@@ -11,11 +11,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from pysifen.pki.certificado import Certificado
+from pysifen.security.secretos import Secreto
+from pysifen.signing.backends.pkcs12 import AvisoDeCustodia, FirmantePkcs12
 
 #: Generar claves RSA es caro. Se reutilizan por sesión.
 _CLAVES: dict[int, rsa.RSAPrivateKey] = {}
@@ -142,3 +144,50 @@ def certificado_fisica() -> Certificado:
         titular="JUAN PEREZ",
         ruc_en_san="RUC80012345-6",
     )
+
+
+#: CDC del ejemplo del apartado 10.1 del Manual Tecnico v150.
+CDC_DEL_MANUAL = "01444444017001001001452822017012515873260988"
+
+#: Un rDE minimo, con la estructura que muestra el manual en el apartado 7.6.
+RDE_SIN_FIRMAR = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dVerFor>150</dVerFor>
+  <DE Id="{CDC_DEL_MANUAL}">
+    <dDVId>8</dDVId>
+    <dFecFirma>2026-09-10T10:00:00</dFecFirma>
+    <dSisFact>1</dSisFact>
+    <gOpeDE>
+      <iTipEmi>1</iTipEmi>
+      <dDesTipEmi>Normal</dDesTipEmi>
+      <dCodSeg>587326098</dCodSeg>
+    </gOpeDE>
+  </DE>
+</rDE>
+"""
+
+
+def construir_pkcs12(
+    certificado: Certificado, contrasena: str = "prueba", bits: int = 2048
+) -> bytes:
+    """Empaqueta un certificado de prueba y su clave en un PKCS#12."""
+    return serialization.pkcs12.serialize_key_and_certificates(
+        name=b"prueba",
+        key=clave(bits),
+        cert=certificado.x509,
+        cas=None,
+        encryption_algorithm=serialization.BestAvailableEncryption(contrasena.encode()),
+    )
+
+
+@pytest.fixture
+def firmante(certificado_juridica: Certificado) -> FirmantePkcs12:
+    """Firmante de prueba respaldado por un PKCS#12 en memoria."""
+    datos = construir_pkcs12(certificado_juridica)
+    with pytest.warns(AvisoDeCustodia, match="custodia"):
+        return FirmantePkcs12.desde_bytes(
+            datos,
+            Secreto("prueba", nombre="contraseña del keystore"),
+            permitir_clave_en_memoria=True,
+        )

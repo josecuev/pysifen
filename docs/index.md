@@ -23,7 +23,8 @@ Dirección Nacional de Ingresos Tributarios.
 | Código QR del KuDE | Listo |
 | Tablas de códigos del Manual Técnico | Parcial |
 | Armado del XML del DE | En curso |
-| Firma XMLDSig | En curso |
+| Firma XMLDSig | Listo |
+| Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
 | Cadena de confianza y revocación | En curso |
 | Web services (recepción, lote, consultas, eventos) | Pendiente |

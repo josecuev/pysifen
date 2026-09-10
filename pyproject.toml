@@ -76,6 +76,7 @@ pytest = ">=9.1.1"
 pytest-cov = ">=7.1.0"
 freezegun = ">=1.5.5"
 respx = ">=0.23.1"
+signxml = ">=4.0"
 
 [tool.poetry.group.docs.dependencies]
 # Pin a la serie 1.x: MkDocs 2.0 elimina el sistema de plugins y no ofrece

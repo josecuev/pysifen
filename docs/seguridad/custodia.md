@@ -13,11 +13,12 @@ Esta página explica cómo `pysifen` la trata y por qué.
 
 De ahí se derivan tres reglas que atraviesan todo el código:
 
-1. **Toda firma pasa por el puerto `Signer`.** Ningún módulo consume una clave
+1. **Toda firma pasa por el puerto [`Firmante`][pysifen.signing.ports.Firmante].** Ningún módulo consume una clave
    directamente. El armador de XML sabe *qué* hay que firmar; no sabe *cómo* ni
    *dónde* vive la clave.
 2. **No existe ninguna API que exporte material de clave privada.** No hay
-   `signer.private_key`, no hay `.export()`, no hay `__repr__` que la muestre.
+   `firmante.clave_privada`, no hay `.exportar()`, no hay `__repr__` que la
+   muestre. Hay tests que lo verifican.
 3. **Los secretos no se imprimen.** El CSC y las contraseñas de keystore se
    manejan con [`Secreto`][pysifen.security.secretos.Secreto], que oculta su
    valor en `repr`, `str`, interpolación de cadenas y trazas de excepción, y se
@@ -74,9 +75,61 @@ el repositorio, ni en una variable de entorno de un `docker-compose` versionado.
 
 Es lo que hace casi todo el mundo y es lo que hay que dejar de hacer.
 
-`pysifen` **no** acepta esta configuración por omisión. Hay que habilitarla de
-forma explícita, y la librería registra una advertencia al usarla. La fricción es
-deliberada: quien la desactiva sabe lo que está aceptando.
+`pysifen` **no** acepta esta configuración por omisión:
+
+```python
+FirmantePkcs12.desde_archivo("cert.p12", contrasena)
+# ConfiguracionError: Cargar la clave privada desde un archivo PKCS#12 la deja
+# expuesta: quien obtenga el archivo y su contraseña puede emitir documentos
+# tributarios a nombre del contribuyente. Si entendés y aceptás esa exposición,
+# pasá permitir_clave_en_disco=True...
+```
+
+Hay que habilitarla de forma explícita, y la librería emite un `AvisoDeCustodia`
+cada vez que se usa. La fricción es deliberada: quien la desactiva sabe lo que
+está aceptando.
+
+## Cómo se elige el nivel en el código
+
+Cada backend declara su nivel, y una aplicación puede exigir un mínimo en el
+arranque en vez de confiar en que nadie configure mal:
+
+```python
+from pysifen.signing import NivelDeCustodia, exigir_nivel
+
+firmante = exigir_nivel(construir_firmante(), NivelDeCustodia.CLAVE_EN_DISPOSITIVO)
+```
+
+Si el firmante configurado es un `.p12`, eso falla en el arranque con un mensaje
+que dice qué nivel se exigía y cuál se recibió. No falla en producción a la hora
+de emitir.
+
+| Backend | Certificado | Nivel |
+|---|---|---|
+| `FirmanteRemoto` | F3 | `CLAVE_FUERA_DEL_ALCANCE` |
+| `FirmantePkcs11` | F2 | `CLAVE_EN_DISPOSITIVO` |
+| `FirmantePkcs12` | F1 | `CLAVE_EN_MEMORIA` |
+
+## Auditoría de las firmas
+
+Firmar un documento tributario es un acto con consecuencias jurídicas. Saber
+cuántas veces se firmó, cuándo y con qué certificado es lo que permite detectar
+un uso indebido: si el registro muestra firmas a las tres de la mañana de un
+domingo, algo pasó.
+
+```python
+from pysifen.signing import FirmanteAuditado
+
+firmante = FirmanteAuditado(firmante, registrar=guardar_en_la_base)
+```
+
+Es un decorador, no una clase base: envuelve cualquier backend sin que ninguno
+se entere, y no cambia el nivel de custodia.
+
+Se registra el **hecho**: cuándo, con qué certificado, si salió bien, y un
+resumen SHA-256 de lo firmado que permite correlacionar sin revelar nada. **No**
+se registra el contenido, ni la firma, ni la clave. Un registro de auditoría que
+filtra lo que audita no sirve para nada.
 
 ## Qué no hace la librería
 
