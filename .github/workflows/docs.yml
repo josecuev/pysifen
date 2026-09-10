@@ -43,7 +43,11 @@ jobs:
 
   publicar:
     name: Publicar en GitHub Pages
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    # También en un disparo manual: si no, no hay forma de volver a publicar
+    # el sitio sin inventar un commit.
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: construir
     runs-on: ubuntu-latest
     environment:
