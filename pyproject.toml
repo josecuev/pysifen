@@ -132,6 +132,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Los nombres de campo del SIFEN son los del Manual Técnico y no se normalizan.
 "src/pysifen/enums.py" = ["N815"]
+"src/pysifen/documento/*.py" = ["N815"]
 "tests/**" = [
     "S101",   # assert es el vocabulario de pytest
     "D100", "D101", "D102", "D103", "D104",  # los tests se nombran, no se documentan

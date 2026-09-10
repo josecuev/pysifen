@@ -98,4 +98,6 @@ nav:
   - Normativa vigente: normativa-vigente.md
   - Seguridad:
       - Custodia del certificado: seguridad/custodia.md
+  - Decisiones:
+      - Orden de los campos: decisiones/0001-orden-de-los-campos.md
   - Referencia de la API: referencia/

@@ -22,7 +22,8 @@ Dirección Nacional de Ingresos Tributarios.
 | Código de seguridad `dCodSeg` | Listo |
 | Código QR del KuDE | Listo |
 | Tablas de códigos del Manual Técnico | Parcial |
-| Armado del XML del DE | En curso |
+| Armado del XML: sobre, operación y timbrado (AA, A, B, C) | Listo |
+| Armado del XML: datos generales, ítems y totales (D a J) | Pendiente |
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
