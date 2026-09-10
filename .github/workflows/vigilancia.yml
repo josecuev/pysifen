@@ -26,7 +26,7 @@ jobs:
     name: Revisar las fuentes oficiales
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: ¿Salió una nota técnica nueva?
         id: notas
@@ -92,7 +92,7 @@ jobs:
           steps.manual.outputs.otras != '' ||
           steps.esquemas.outputs.cambiaron != '' ||
           steps.confianza.outputs.cambio != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const notas = '${{ steps.notas.outputs.nuevas }}';

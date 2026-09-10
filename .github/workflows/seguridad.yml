@@ -32,7 +32,7 @@ jobs:
       matrix:
         language: [python, actions]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Inicializar CodeQL
         uses: github/codeql-action/init@v3
@@ -49,9 +49,9 @@ jobs:
     name: Auditoría de dependencias
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -78,7 +78,7 @@ jobs:
       security-events: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Analizar los workflows
         run: |
@@ -95,9 +95,9 @@ jobs:
     name: Inventario de componentes (SBOM)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -110,7 +110,7 @@ jobs:
           cyclonedx-py poetry --output-format json --outfile sbom.cdx.json
 
       - name: Publicar el SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom.cdx.json

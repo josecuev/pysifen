@@ -16,12 +16,12 @@ jobs:
     name: Verificar antes de publicar
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar Poetry
         run: pipx install poetry==2.4.3
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: poetry
@@ -59,12 +59,12 @@ jobs:
     needs: verificar
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar Poetry
         run: pipx install poetry==2.4.3
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: poetry
@@ -77,7 +77,7 @@ jobs:
           pipx install twine
           twine check --strict dist/*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -95,13 +95,13 @@ jobs:
       attestations: write
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
       - name: Atestiguar la procedencia de los artefactos
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/*"
 
