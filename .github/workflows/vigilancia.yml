@@ -1,0 +1,97 @@
+name: Vigilancia normativa
+
+# El SIFEN se enmienda sin avisar a los integradores. Este workflow mira las
+# fuentes oficiales una vez por semana y abre un issue si algo cambió.
+#
+# Ver docs/mantenimiento/vigilancia-normativa.md
+
+on:
+  schedule:
+    # Lunes 07:00 en Asunción (UTC-3).
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # Última nota técnica conocida. Subir este número al incorporar una nueva.
+  ULTIMA_NOTA_TECNICA: "027"
+  # Versión del Manual Técnico vigente.
+  VERSION_MANUAL: "150"
+
+jobs:
+  revisar:
+    name: Revisar las fuentes oficiales
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Salió una nota técnica nueva?
+        id: notas
+        run: |
+          set -uo pipefail
+          base="https://www.dnit.gov.py/documents/20123/420595"
+          siguiente=$(printf "%03d" $((10#${ULTIMA_NOTA_TECNICA} + 1)))
+          nuevas=""
+
+          for _ in 1 2 3; do
+            url="${base}/NT_E_KUATIA_${siguiente}_MT_V150.pdf"
+            codigo=$(curl -sS -o /dev/null -w "%{http_code}" -L --max-time 30 "$url" || echo "000")
+            if [ "$codigo" = "200" ]; then
+              echo "encontrada la NT-${siguiente}"
+              nuevas="${nuevas} ${siguiente}"
+              siguiente=$(printf "%03d" $((10#${siguiente} + 1)))
+            else
+              break
+            fi
+          done
+
+          echo "nuevas=${nuevas# }" >> "$GITHUB_OUTPUT"
+
+      - name: ¿Cambió la versión del Manual Técnico?
+        id: manual
+        run: |
+          set -uo pipefail
+          pagina="https://www.dnit.gov.py/web/e-kuatia/documentacion-tecnica"
+          cuerpo=$(curl -sS -L --max-time 45 "$pagina" || echo "")
+          otra=""
+          for v in 160 170 151 152; do
+            if printf '%s' "$cuerpo" | grep -qi "Versi.n[+ ]*${v}"; then
+              otra="${otra} ${v}"
+            fi
+          done
+          echo "otras=${otra# }" >> "$GITHUB_OUTPUT"
+
+      - name: Abrir un issue si hay novedades
+        if: steps.notas.outputs.nuevas != '' || steps.manual.outputs.otras != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const notas = '${{ steps.notas.outputs.nuevas }}';
+            const manual = '${{ steps.manual.outputs.otras }}';
+            let cuerpo = 'La vigilancia semanal encontró novedades en las fuentes oficiales.\n\n';
+            if (notas) {
+              cuerpo += `**Notas técnicas nuevas:** ${notas}\n\n`;
+              cuerpo += 'Descargarlas, leer qué cambian y aplicarlas de forma acumulativa. ';
+              cuerpo += 'Después subir `ULTIMA_NOTA_TECNICA` en este workflow.\n\n';
+            }
+            if (manual) {
+              cuerpo += `**Posible versión nueva del Manual Técnico:** ${manual}\n\n`;
+              cuerpo += 'Verificar en el portal. Un cambio de versión mayor obliga a revisar todo.\n\n';
+            }
+            cuerpo += 'Fuentes y procedimiento: `docs/mantenimiento/vigilancia-normativa.md`';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Novedades en la normativa del SIFEN',
+              body: cuerpo,
+              labels: ['normativa'],
+            });
+
+      - name: Sin novedades
+        if: steps.notas.outputs.nuevas == '' && steps.manual.outputs.otras == ''
+        run: |
+          echo "Sin cambios: sigue el Manual Técnico v${VERSION_MANUAL} con la NT-${ULTIMA_NOTA_TECNICA}."

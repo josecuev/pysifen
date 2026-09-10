@@ -95,6 +95,8 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
   qué está en vigor, con fechas y citas de fuentes primarias.
 - [Custodia del certificado](https://josecuev.github.io/pysifen/seguridad/custodia/) —
   cómo se protege la clave privada y por qué.
+- [Vigilancia normativa](https://josecuev.github.io/pysifen/mantenimiento/vigilancia-normativa/) —
+  dónde mirar cuando la DNIT cambie algo.
 
 ## Contribuir
 

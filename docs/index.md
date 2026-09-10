@@ -38,7 +38,8 @@ apartado del manual que implementa, de modo que se pueda auditar contra el
 documento oficial.
 
 El detalle de lo que está vigente, con fechas y citas, está en
-[Normativa vigente](normativa-vigente.md).
+[Normativa vigente](normativa-vigente.md). Dónde mirar cuando eso cambie,
+en [Vigilancia normativa](mantenimiento/vigilancia-normativa.md).
 
 ## Ejemplo
 

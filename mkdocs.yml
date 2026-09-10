@@ -98,6 +98,8 @@ nav:
   - Normativa vigente: normativa-vigente.md
   - Seguridad:
       - Custodia del certificado: seguridad/custodia.md
+  - Mantenimiento:
+      - Vigilancia normativa: mantenimiento/vigilancia-normativa.md
   - Decisiones:
       - Orden de los campos: decisiones/0001-orden-de-los-campos.md
       - Canonicalización: decisiones/0002-canonicalizacion.md

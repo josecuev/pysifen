@@ -23,18 +23,31 @@ from typing import Annotated, Any, ClassVar
 from lxml import etree
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["GrupoSifen", "campo", "identificadores_del_manual"]
+__all__ = [
+    "GrupoSifen",
+    "Importe",
+    "campo",
+    "campo_opcional",
+    "cobertura_de_identificadores",
+    "identificadores_del_manual",
+]
 
 
 def campo(
-    identificador: str,
+    identificador: str | None,
     descripcion: str,
     **extra: Any,
 ) -> Any:
     """Declara un campo con su identificador del Manual Técnico.
 
     Args:
-        identificador: el identificador del manual, por ejemplo ``"C004"``.
+        identificador: el identificador del manual, por ejemplo ``"C004"``, o
+            ``None`` cuando no se lo pudo confirmar. Las tablas del manual
+            vienen maquetadas en columnas que se entrelazan al extraer el texto
+            del PDF, así que para varios campos el identificador no es legible
+            sin ambigüedad. Se prefiere dejarlo ausente antes que adivinarlo:
+            un identificador equivocado en una matriz de trazabilidad es peor
+            que uno faltante.
         descripcion: la descripción del campo, en las palabras del manual.
         **extra: cualquier restricción adicional de pydantic, como
             ``min_length`` o ``max_length``.
@@ -49,14 +62,14 @@ def campo(
     """
     return Field(
         ...,
-        description=f"{identificador} · {descripcion}",
-        json_schema_extra={"sifen": identificador},
+        description=_describir(identificador, descripcion),
+        json_schema_extra=_metadata(identificador),
         **extra,
     )
 
 
 def campo_opcional(
-    identificador: str,
+    identificador: str | None,
     descripcion: str,
     **extra: Any,
 ) -> Any:
@@ -74,10 +87,20 @@ def campo_opcional(
     """
     return Field(
         default=None,
-        description=f"{identificador} · {descripcion}",
-        json_schema_extra={"sifen": identificador},
+        description=_describir(identificador, descripcion),
+        json_schema_extra=_metadata(identificador),
         **extra,
     )
+
+
+def _describir(identificador: str | None, descripcion: str) -> str:
+    """Arma la descripción, con el identificador adelante si se lo conoce."""
+    return f"{identificador} · {descripcion}" if identificador else descripcion
+
+
+def _metadata(identificador: str | None) -> dict[str, Any] | None:
+    """Guarda el identificador para la matriz de trazabilidad."""
+    return {"sifen": identificador} if identificador else None
 
 
 class GrupoSifen(BaseModel):
@@ -186,12 +209,15 @@ def identificadores_del_manual(grupo: type[GrupoSifen]) -> dict[str, str]:
     Args:
         grupo: la clase del grupo.
 
+    Sólo aparecen los campos cuyo identificador se pudo confirmar contra el
+    manual. Los demás quedan fuera del mapa a propósito: ver :func:`campo`.
+
     Returns:
         Un diccionario del nombre del campo a su identificador, por ejemplo
         ``{"dNumTim": "C004"}``.
 
     Example:
-        >>> from pysifen.documento.timbrado import Timbrado
+        >>> from pysifen.documento.sobre import Timbrado
         >>> identificadores_del_manual(Timbrado)["dNumTim"]
         'C004'
     """
@@ -205,3 +231,15 @@ def identificadores_del_manual(grupo: type[GrupoSifen]) -> dict[str, str]:
 
 #: Tipo de los importes del SIFEN: hasta 15 enteros y 8 decimales.
 Importe = Annotated[Decimal, Field(max_digits=23, decimal_places=8)]
+
+
+def cobertura_de_identificadores(grupo: type[GrupoSifen]) -> tuple[int, int]:
+    """Cuántos campos de un grupo tienen identificador confirmado.
+
+    Args:
+        grupo: la clase del grupo.
+
+    Returns:
+        Un par ``(confirmados, total)``.
+    """
+    return len(identificadores_del_manual(grupo)), len(grupo.model_fields)
