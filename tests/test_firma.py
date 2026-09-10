@@ -72,12 +72,23 @@ class TestEstructuraDeLaFirma:
         hijos = [etree.QName(h).localname for h in firmado]
         assert hijos == ["dVerFor", "DE", "Signature"]
 
-    def test_canonicalizacion_del_signed_info_es_inclusiva(
+    def test_canonicalizacion_del_signed_info_es_exclusiva_por_omision(
         self, firmado: etree._Element
     ) -> None:
+        # Es lo que usan los documentos que el SIFEN acepta en produccion, aunque
+        # el ejemplo del manual muestre la inclusiva.
+        # Ver docs/decisiones/0002-canonicalizacion.md
         metodo = firmado.find(
             f"{DS}Signature/{DS}SignedInfo/{DS}CanonicalizationMethod"
         )
+        assert metodo is not None
+        assert metodo.get("Algorithm") == C14N_EXCLUSIVO
+
+    def test_se_puede_pedir_la_del_manual(self, firmante: FirmantePkcs12) -> None:
+        arbol = etree.fromstring(
+            firmar_documento(RDE_SIN_FIRMAR, firmante, canonicalizacion=C14N_INCLUSIVO)
+        )
+        metodo = arbol.find(f"{DS}Signature/{DS}SignedInfo/{DS}CanonicalizationMethod")
         assert metodo is not None
         assert metodo.get("Algorithm") == C14N_INCLUSIVO
 
@@ -164,7 +175,7 @@ class TestCorrectitudCriptografica:
         assert valor is not None
         assert valor.text
 
-        canonico = etree.tostring(info, method="c14n", exclusive=False)
+        canonico = etree.tostring(info, method="c14n", exclusive=True)
         _clave_publica(firmante.certificado).verify(
             base64.b64decode(valor.text),
             canonico,
@@ -204,7 +215,7 @@ class TestCorrectitudCriptografica:
         # El certificado de persona física se generó con otra clave distinta a
         # la del firmante sólo si los tamaños difieren; se fuerza el fallo
         # alterando el SignedInfo canonicalizado.
-        canonico = etree.tostring(info, method="c14n", exclusive=False) + b" "
+        canonico = etree.tostring(info, method="c14n", exclusive=True) + b" "
         with pytest.raises(InvalidSignature):
             _clave_publica(certificado_fisica).verify(
                 base64.b64decode(valor.text),

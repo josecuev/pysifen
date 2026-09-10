@@ -100,4 +100,5 @@ nav:
       - Custodia del certificado: seguridad/custodia.md
   - Decisiones:
       - Orden de los campos: decisiones/0001-orden-de-los-campos.md
+      - Canonicalización: decisiones/0002-canonicalizacion.md
   - Referencia de la API: referencia/

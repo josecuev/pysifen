@@ -25,6 +25,17 @@ el versionado sigue [SemVer](https://semver.org/lang/es/).
   el código.
 - Revisión de la normativa vigente contra fuentes primarias, con fechas y citas.
 
+### Corregido
+
+- El `CanonicalizationMethod` del `SignedInfo` pasa a ser **exclusivo** por
+  omisión. El ejemplo del apartado 7.6 del manual muestra el inclusivo, pero un
+  documento tributario real emitido en producción usa el exclusivo en los dos
+  lugares, y su `DigestValue` sólo cierra con ese. El del manual queda
+  disponible por parámetro. Ver `docs/decisiones/0002-canonicalizacion.md`.
+- Los importes conservan sus decimales explícitos en vez de normalizarse. El
+  SIFEN escribe `36500.00000000` y el hash del QR se calcula sobre esa cadena
+  exacta, así que normalizar a `36500` rompería la verificación.
+
 ### Cambiado
 
 - Migración a disposición `src/`.

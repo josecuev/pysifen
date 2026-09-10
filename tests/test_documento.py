@@ -208,8 +208,10 @@ class TestFormateo:
             (TipoDocumento.FACTURA, "1"),
             (date(2026, 1, 1), "2026-01-01"),
             (datetime(2026, 1, 1, 9, 35, 17), "2026-01-01T09:35:17"),  # noqa: DTZ001
-            (Decimal("1000.00"), "1000"),
-            (Decimal("1000.50"), "1000.5"),
+            # Los importes conservan sus decimales: el SIFEN los escribe asi
+            # y el hash del QR se calcula sobre esa cadena exacta.
+            (Decimal("1000.00"), "1000.00"),
+            (Decimal("36500.00000000"), "36500.00000000"),
             ("texto", "texto"),
             (True, "1"),
             (False, "0"),

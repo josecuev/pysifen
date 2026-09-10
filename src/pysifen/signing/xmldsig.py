@@ -9,11 +9,19 @@ el atributo ``URI`` del ``Reference``.
 Las dos particularidades del SIFEN
 ----------------------------------
 
-**1. Mezcla las dos canonicalizaciones.** El manual pide c14n *inclusivo*
-(``REC-xml-c14n-20010315``) en el ``CanonicalizationMethod`` del ``SignedInfo``,
-y c14n *exclusivo* (``xml-exc-c14n#``) en el ``Transform`` de la ``Reference``.
-No es un error de tipeo del manual: hay que respetarlo tal cual o la firma no
-valida del otro lado.
+**1. El manual y la práctica no coinciden en la canonicalización.** El ejemplo
+del apartado 7.6 muestra c14n *inclusivo* (``REC-xml-c14n-20010315``) en el
+``CanonicalizationMethod`` del ``SignedInfo``, y *exclusivo* (``xml-exc-c14n#``)
+en el ``Transform`` de la ``Reference``.
+
+Pero los documentos que el SIFEN acepta en producción usan **exclusivo en los
+dos lugares**. Se verificó contra un documento tributario electrónico real,
+emitido y firmado con un certificado de DOCUMENTA S.A.: su ``DigestValue``
+sólo cierra con canonicalización exclusiva.
+
+Por eso el valor por omisión es el **exclusivo**, que es el que hay evidencia de
+que funciona. El del manual queda disponible por parámetro. Ver
+``docs/decisiones/0002-canonicalizacion.md``.
 
 **2. La firma no está adentro de lo firmado.** El manual declara la
 transformación ``enveloped-signature``, pero en su propio ejemplo el
@@ -145,6 +153,7 @@ def firmar_elemento(
     firmante: Firmante,
     *,
     identificador: str | None = None,
+    canonicalizacion: str = C14N_EXCLUSIVO,
 ) -> etree._Element:
     """Firma un elemento del árbol y agrega la firma como hermano.
 
@@ -156,6 +165,10 @@ def firmar_elemento(
         firmante: quien firma. Ver :class:`~pysifen.signing.ports.Firmante`.
         identificador: valor del atributo ``Id`` del elemento a firmar, o sea el
             CDC. Si no se pasa, se toma el del primer elemento que tenga ``Id``.
+        canonicalizacion: algoritmo del ``CanonicalizationMethod``. Por omisión
+            el exclusivo, que es el que usan los documentos aceptados en
+            producción. Pasar :data:`C14N_INCLUSIVO` para seguir el ejemplo del
+            manual al pie de la letra.
 
     Returns:
         El elemento ``Signature`` recién creado.
@@ -180,7 +193,7 @@ def firmar_elemento(
     firma = etree.SubElement(raiz, _ds("Signature"))
     info = etree.SubElement(firma, _ds("SignedInfo"))
 
-    etree.SubElement(info, _ds("CanonicalizationMethod"), Algorithm=C14N_INCLUSIVO)
+    etree.SubElement(info, _ds("CanonicalizationMethod"), Algorithm=canonicalizacion)
     etree.SubElement(info, _ds("SignatureMethod"), Algorithm=ALGORITMO_FIRMA)
 
     referencia = etree.SubElement(info, _ds("Reference"), URI=f"#{identificador}")
@@ -194,9 +207,11 @@ def firmar_elemento(
         digest
     ).decode()
 
-    # Paso 3: firmar el SignedInfo canonicalizado de forma inclusiva.
+    # Paso 3: firmar el SignedInfo con la canonicalización que se declaró.
     try:
-        firmado_crudo = firmante.firmar(_canonicalizar(info, exclusivo=False))
+        firmado_crudo = firmante.firmar(
+            _canonicalizar(info, exclusivo=canonicalizacion == C14N_EXCLUSIVO)
+        )
     except FirmaError:
         raiz.remove(firma)
         raise
@@ -223,6 +238,7 @@ def firmar_documento(
     firmante: Firmante,
     *,
     identificador: str | None = None,
+    canonicalizacion: str = C14N_EXCLUSIVO,
 ) -> bytes:
     """Firma un documento electrónico completo.
 
@@ -231,6 +247,8 @@ def firmar_documento(
         firmante: quien firma.
         identificador: CDC del documento a firmar. Si no se pasa, se toma el
             atributo ``Id`` del primer elemento que lo tenga.
+        canonicalizacion: algoritmo del ``CanonicalizationMethod``. Ver
+            :func:`firmar_elemento`.
 
     Returns:
         El documento firmado, serializado en UTF-8.
@@ -252,7 +270,12 @@ def firmar_documento(
     except etree.XMLSyntaxError as exc:
         raise FirmaError(f"el XML a firmar no es válido: {exc}") from exc
 
-    firmar_elemento(raiz, firmante, identificador=identificador)
+    firmar_elemento(
+        raiz,
+        firmante,
+        identificador=identificador,
+        canonicalizacion=canonicalizacion,
+    )
     return etree.tostring(raiz, encoding="UTF-8", xml_declaration=True)
 
 

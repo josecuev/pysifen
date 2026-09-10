@@ -168,7 +168,10 @@ def formatear(valor: Any) -> str:
     if isinstance(valor, date):
         return valor.isoformat()
     if isinstance(valor, Decimal):
-        return format(valor.normalize(), "f")
+        # Sin normalize: el SIFEN escribe los importes con sus decimales
+        # explícitos (36500.00000000) y el hash del QR se calcula sobre
+        # esa cadena exacta.
+        return format(valor, "f")
     if isinstance(valor, int):
         return str(int(valor))
     return str(valor)

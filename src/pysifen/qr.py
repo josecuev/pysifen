@@ -68,9 +68,9 @@ def _formatear_monto(valor: Decimal | float | int | str | None) -> str:
     if valor is None or valor == "":
         return "0"
     if isinstance(valor, Decimal):
-        normalizado = valor.normalize()
-        texto = format(normalizado, "f")
-        return texto
+        # Sin normalize: el importe tiene que salir tal como figura en el
+        # DE, porque es sobre esa cadena que el SIFEN recalcula el hash.
+        return format(valor, "f")
     return str(valor)
 
 
