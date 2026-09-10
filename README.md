@@ -67,7 +67,8 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 | Tablas de códigos del Manual Técnico | Parcial |
 | Armado del XML del DE | En curso |
 | Firma XMLDSig | En curso |
-| Prestadores cualificados y validación de certificados | En curso |
+| Lectura de certificados y prestadores cualificados | Listo |
+| Cadena de confianza y revocación | En curso |
 | Web services (recepción, lote, consultas, eventos) | Pendiente |
 
 ## Principios

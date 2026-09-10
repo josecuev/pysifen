@@ -55,14 +55,16 @@ pkcs11 = ["python-pkcs11>=0.10.0"]
 
 [project.entry-points."pysifen.psc"]
 # Prestadores cualificados de servicios de confianza habilitados por el MIC.
-# Agregar uno nuevo no requiere tocar el núcleo: basta registrar su entry point.
-vit = "pysifen.pki.providers.vit:VitProvider"
-code100 = "pysifen.pki.providers.code100:Code100Provider"
-documenta = "pysifen.pki.providers.documenta:DocumentaProvider"
-identificaciones = "pysifen.pki.providers.identificaciones:IdentificacionesProvider"
-confirma = "pysifen.pki.providers.confirma:ConfirmaProvider"
-itti = "pysifen.pki.providers.itti:IttiProvider"
-sos = "pysifen.pki.providers.sos:SosProvider"
+# Agregar uno nuevo no requiere tocar el nucleo: alcanza con publicar una
+# fabrica que cumpla el protocolo y declararla en este grupo, sea aca o desde
+# un paquete de terceros.
+vit = "pysifen.pki.prestadores:vit"
+code100 = "pysifen.pki.prestadores:code100"
+documenta = "pysifen.pki.prestadores:documenta"
+identificaciones = "pysifen.pki.prestadores:identificaciones"
+confirma = "pysifen.pki.prestadores:confirma"
+itti = "pysifen.pki.prestadores:itti"
+sos = "pysifen.pki.prestadores:sos"
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=2.3.1"
