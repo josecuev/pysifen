@@ -32,6 +32,20 @@ Tres cosas que conviene saber antes de usar el resultado:
    alarma —son desvíos conocidos de emisores reales— pero quien audita tiene
    derecho a saberlo.
 
+Si además necesitás el documento entero y no sólo el veredicto:
+
+```python
+from pysifen.documento import documento_desde_xml
+
+de = documento_desde_xml(xml_recibido)
+de.gTotSub.dTotGralOpe  # Decimal, con la escala del original
+[i.dDesProSer for i in de.gDtipDE.gCamItem]
+```
+
+Devuelve los 49 grupos con tipos de Python, no cadenas: `Decimal` para los
+importes, `date` y `datetime` para las fechas. Y **rechaza** un documento con un
+elemento que el esquema no declara, en vez de ignorarlo.
+
 No hace falta certificado propio ni estar habilitado como facturador para nada
 de esto.
 
@@ -101,7 +115,7 @@ Los campos `dDes*` no son texto libre: el esquema los enumera carácter por
 carácter. `"Normal"` es válido; `"normal"` no.
 
 ```python
-Operacion(iTipEmi=1, dDesTipEmi="normal", dCodSeg=587326098)
+Operacion(iTipEmi=1, dDesTipEmi="normal", dCodSeg="587326098")
 # ValidationError: Input should be 'Normal' or 'Contingencia'
 ```
 

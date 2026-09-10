@@ -82,7 +82,7 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 ## Estado
 
 > [!WARNING]
-> Versión 0.4.0. Lee y verifica documentos recibidos de punta a punta, y arma y
+> Versión 0.5.0. Lee y verifica documentos recibidos de punta a punta, y arma y
 > firma documentos propios, pero **todavía no los transmite al SIFEN**. La API
 > puede cambiar mientras la versión empiece en `0.`. Ver la
 > [hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/).
@@ -104,8 +104,8 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
+| Lectura completa del documento a los modelos | Listo |
 | Revocación (CRL/OCSP) | Pendiente |
-| Lectura completa del documento a los modelos | Pendiente |
 | Web services (recepción, lote, consultas, eventos) | Pendiente |
 
 ## Línea de comandos

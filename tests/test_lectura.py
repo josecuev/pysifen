@@ -41,7 +41,7 @@ def _documento_firmado(firmante: FirmantePkcs12) -> bytes:
         dDVId=8,
         dFecFirma=datetime(2026, 9, 10, 10, 0, 0),  # noqa: DTZ001
         dSisFact=1,
-        gOpeDE=Operacion(iTipEmi=1, dDesTipEmi="Normal", dCodSeg=587326098),
+        gOpeDE=Operacion(iTipEmi=1, dDesTipEmi="Normal", dCodSeg="587326098"),
         gTimb=Timbrado(
             iTiDE=1,
             dDesTiDE="Factura electrónica",

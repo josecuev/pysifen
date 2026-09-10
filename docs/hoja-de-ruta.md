@@ -9,7 +9,7 @@ cuando se puede demostrar, no cuando parece que sí.
 
 ## Dónde estamos
 
-### 0.4.0 — leer y verificar de verdad (actual)
+### 0.5.0 — leer y verificar de verdad (actual)
 
 Lo que hay hoy:
 
@@ -24,10 +24,12 @@ Lo que hay hoy:
 | Custodia de la clave (F1, F2, F3) y auditoría | Los tres backends |
 | Lectura de certificados y prestadores cualificados | Probada contra un certificado real |
 | Cadena de confianza hasta la Raíz del Paraguay | 5 certificados reales encadenan; un autofirmado que dice ser de DOCUMENTA se rechaza |
+| Lectura completa del documento a los modelos | 4 documentos reales dan la vuelta sin perder nada |
 | Servidor MCP sin estado | 6 herramientas, stdio y Streamable HTTP |
+| Imagen de Docker | 165 MB, sin root, sin vulnerabilidades con arreglo |
 | Línea de comandos | Operación y auto-descripción |
 
-Lo que **no** hay: revocación, lectura completa a modelos, transmitir.
+Lo que **no** hay: revocación, transmitir.
 
 ## Lo que falta
 
@@ -76,13 +78,25 @@ verificador los tolera y **declara cuál toleró**, en `tolerancias`. El quinto
 documento no corresponde a su propio resumen bajo ninguna interpretación, y se
 rechaza.
 
-### 0.5.0 — lectura completa a modelos
-
-Hoy se extraen los campos que identifican al documento con caminos XPath. Falta
-interpretar el documento entero a los modelos generados, sin perder nada.
+### 0.5.0 — lectura completa a modelos ✔
 
 **Criterio**: un documento leído y vuelto a serializar produce un XML
 equivalente.
+
+**Cumplido.** `documento_desde_xml()` interpreta el documento entero a los 49
+grupos, y los cuatro documentos reales vuelven a salir con los mismos 156, 138,
+151 y 147 elementos, mismos nombres, mismos textos y mismos atributos.
+
+La lectura es genérica y no una tabla de 49 entradas: los modelos ya saben su
+etiqueta, sus campos y sus tipos, y el generador garantiza que el nombre del
+campo **es** la etiqueta del elemento. Un grupo nuevo en el esquema aparece solo
+al regenerar.
+
+De paso destapó un error que también afectaba a la emisión: `dCodSeg` estaba
+tipado como entero, y el esquema lo declara `xs:integer` con `pattern
+[0-9]{9}`. Un patrón restringe la forma **léxica**, así que `000166795` es
+válido y `166795` no: la librería podía producir un XML que el SIFEN rechaza.
+Son ocho los campos así, y ahora van como cadena.
 
 ### 0.6.0 — revocación
 
@@ -98,7 +112,7 @@ pudo comprobar en vez de darlo por bueno.
 
 - [x] 0.3.0 — cadena de confianza.
 - [x] 0.4.0 — firmas reales explicadas.
-- [ ] 0.5.0 — lectura completa a modelos.
+- [x] 0.5.0 — lectura completa a modelos.
 - [ ] 0.6.0 — revocación.
 - [ ] Verificación completa: esquema, firma, cadena de confianza, vigencia a la
       firma, revocación, coherencia de CDC y QR.

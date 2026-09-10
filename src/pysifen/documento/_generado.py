@@ -39,7 +39,7 @@ class COpeDE(GrupoSifen):
     dDesTipEmi: Literal["Normal", "Contingencia"] = campo(
         None, "Descripcion del tipo de emision: 1(Normal). 2(Contingencia)."
     )
-    dCodSeg: Annotated[int, Field(ge=1)] = campo(
+    dCodSeg: Annotated[str, StringConstraints(pattern="[0-9]{9}")] = campo(
         None,
         "La generacion de este codigo es responsabilidad del emisor, segun los delineamientos establecidos en el Manual Tecnico, no debe ser un numero secuencial, sino aleatorio, tampoco debe contener solo ceros.",
     )
@@ -479,11 +479,11 @@ class CompPub(GrupoSifen):
     dModCont: Annotated[
         str, StringConstraints(min_length=2, max_length=2, pattern=".*[^\\s].*")
     ] = campo(None, "Modalidad - Codigo emitido por la DNCP.")
-    dEntCont: Annotated[int, Field(ge=1)] = campo(
+    dEntCont: Annotated[str, StringConstraints(pattern="[0-9]{5}")] = campo(
         None, "Entidad - Codigo de contratacion emitido por la DNCP."
     )
     dAnoCont: int = campo(None, "Anho - Codigo de contratacion emitido por la DNCP.")
-    dSecCont: Annotated[int, Field(ge=1)] = campo(
+    dSecCont: Annotated[str, StringConstraints(pattern="[0-9]{7}")] = campo(
         None, "Secuencia - Codigo de contratacion emitido por la DNCP."
     )
     dFeCodCont: Annotated[
@@ -907,17 +907,23 @@ class CamItem(GrupoSifen):
     dCodInt: Annotated[
         str, StringConstraints(min_length=1, max_length=50, pattern=".*[^\\s].*")
     ] = campo(None, "Codigo interno de mercaderia.")
-    dParAranc: int | None = campo_opcional(None, "Partida arancelaria.")
-    dNCM: int | None = campo_opcional(None, "Nomenclatura comun del MERCOSUR (NCM).")
+    dParAranc: Annotated[str, StringConstraints(pattern="[0-9]{4}")] | None = (
+        campo_opcional(None, "Partida arancelaria.")
+    )
+    dNCM: Annotated[str, StringConstraints(pattern="[0-9]{6,8}")] | None = (
+        campo_opcional(None, "Nomenclatura comun del MERCOSUR (NCM).")
+    )
     dDncpG: Annotated[str, StringConstraints(pattern="[0-9]{8}")] | None = (
         campo_opcional(None, "Codigo DNCP - Nivel General.")
     )
     dDncpE: Annotated[str, StringConstraints(pattern="[0-9]{3,4}")] | None = (
         campo_opcional(None, "Codigo DNCP - Nivel Especifico.")
     )
-    dGtin: int | None = campo_opcional(None, "Codigo GTIN por Producto y por Paquete.")
-    dGtinPq: int | None = campo_opcional(
-        None, "Codigo GTIN por Producto y por Paquete."
+    dGtin: Annotated[str, StringConstraints(pattern="[0-9]{8,14}")] | None = (
+        campo_opcional(None, "Codigo GTIN por Producto y por Paquete.")
+    )
+    dGtinPq: Annotated[str, StringConstraints(pattern="[0-9]{8,14}")] | None = (
+        campo_opcional(None, "Codigo GTIN por Producto y por Paquete.")
     )
     dDesProSer: str = campo(None, "dDesProSer")
     cUniMed: str = campo(None, "cUniMed")
@@ -1459,7 +1465,9 @@ class CamFEI(GrupoSifen):
 
     _etiqueta: ClassVar[str] = "tgCamFEI"
 
-    cTipRegImp: int = campo(None, "Regimenes Aduaneros.")
+    cTipRegImp: Annotated[str, StringConstraints(pattern="[0-9]{4}")] = campo(
+        None, "Regimenes Aduaneros."
+    )
     dPuLleg: str = campo(None, "dPuLleg")
     dNuDesp: str = campo(None, "dNuDesp")
     dFecDesp: Annotated[

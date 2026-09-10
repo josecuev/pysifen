@@ -176,6 +176,21 @@ def anotacion(tipo_xsd: str, simples: dict[str, etree._Element]) -> str:
             return f"Annotated[str, StringConstraints({argumentos})]"
         return "str"
 
+    if base == "int" and _exige_relleno(marcas.get("pattern")):
+        # Un patron del XSD restringe la forma LEXICA, no el valor. Cuando el
+        # tipo es entero y el patron exige mas de un digito, lo que el esquema
+        # pide es una cantidad minima de caracteres: dCodSeg es xs:integer con
+        # pattern [0-9]{9}, asi que 000166795 es valido y 166795 no lo es.
+        #
+        # Un int de Python no puede representar eso: pierde los ceros a la
+        # izquierda y al serializar produce un documento que el SIFEN rechaza.
+        # Por eso estos campos van como cadena, que es lo unico que conserva la
+        # forma que el esquema pide.
+        #
+        # No entran aca los patrones que enumeran codigos -[1-2], 1|[4-7]|9|10-
+        # porque ahi no hay relleno posible: el entero ya es la forma correcta.
+        return f"Annotated[str, StringConstraints(pattern={_texto(marcas['pattern'])})]"
+
     if base in {"int", "Decimal"}:
         numericos: dict[str, str] = {}
         if "minInclusive" in marcas:
@@ -193,6 +208,19 @@ def anotacion(tipo_xsd: str, simples: dict[str, etree._Element]) -> str:
         return base
 
     return base
+
+
+def _exige_relleno(patron: str | None) -> bool:
+    """Indica si un patron obliga a escribir el numero con ceros adelante.
+
+    Es el caso de ``[0-9]{9}`` y de ``[0-9]{6,8}``: el minimo de digitos es
+    mayor que uno, asi que un valor chico tiene que ir rellenado. No es el caso
+    de ``[0-9]{1,5}`` ni de las alternativas que enumeran codigos.
+    """
+    if not patron:
+        return False
+    coincidencia = re.fullmatch(r"\[0-9\]\{(\d+)(?:,\d+)?\}", patron)
+    return bool(coincidencia) and int(coincidencia.group(1)) > 1
 
 
 def _texto(valor: str) -> str:

@@ -54,7 +54,7 @@ def _documento(**cambios: object) -> DocumentoElectronico:
         "dDVId": 8,
         "dFecFirma": datetime(2026, 9, 10, 10, 0, 0),  # noqa: DTZ001
         "dSisFact": 1,
-        "gOpeDE": Operacion(iTipEmi=1, dDesTipEmi="Normal", dCodSeg=587326098),
+        "gOpeDE": Operacion(iTipEmi=1, dDesTipEmi="Normal", dCodSeg="587326098"),
         "gTimb": _timbrado(),
         "gDatGralOpe": None,
         "gDtipDE": None,
@@ -104,7 +104,7 @@ class TestModelosGenerados:
     def test_las_enumeraciones_son_exactas(self) -> None:
         # El esquema exige el literal carácter por carácter.
         with pytest.raises(ValidationError):
-            Operacion(iTipEmi=1, dDesTipEmi="normal", dCodSeg=587326098)  # type: ignore[arg-type]
+            Operacion(iTipEmi=1, dDesTipEmi="normal", dCodSeg="587326098")  # type: ignore[arg-type]
 
     def test_rechaza_campos_desconocidos(self) -> None:
         with pytest.raises(ValidationError):

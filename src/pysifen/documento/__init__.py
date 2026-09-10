@@ -40,6 +40,7 @@ from pysifen.documento._generado import (
     DatRec,
     DocumentoElectronico,
     DTim,
+    DtipDE,
     Emis,
     PagCred,
     TotSub,
@@ -52,6 +53,10 @@ from pysifen.documento.base import (
     cobertura_de_identificadores,
     formatear,
     identificadores_del_manual,
+)
+from pysifen.documento.desde_xml import (
+    documento_desde_xml,
+    grupo_desde_elemento,
 )
 from pysifen.documento.sobre import (
     NS_SIFEN,
@@ -87,6 +92,7 @@ __all__ = [
     "DatRec",
     "DatosGenerales",
     "DocumentoElectronico",
+    "DtipDE",
     "Emis",
     "Emisor",
     "GrupoSifen",
@@ -102,7 +108,9 @@ __all__ = [
     "campo",
     "campo_opcional",
     "cobertura_de_identificadores",
+    "documento_desde_xml",
     "formatear",
+    "grupo_desde_elemento",
     "identificadores_del_manual",
     "sobre_rde",
 ]
