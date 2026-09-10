@@ -59,6 +59,15 @@ orden de un segundo; hacerlo por pedido haría inviable un lote.
     }
     ```
 
+=== "Docker"
+
+    ```bash
+    docker run --rm -p 127.0.0.1:8000:8000 josecuev/pysifen
+    ```
+
+    Sin instalar nada, ni siquiera Python. El detalle esta en
+    [Imagen de Docker](docker.md).
+
 === "Servidor HTTP"
 
     ```bash

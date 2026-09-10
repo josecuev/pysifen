@@ -12,14 +12,20 @@
   <a href="https://josecuev.github.io/pysifen/"><img alt="Documentación" src="https://img.shields.io/badge/docs-mkdocs--material-blue.svg"></a>
   <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
   <a href="https://mypy-lang.org/"><img alt="mypy" src="https://img.shields.io/badge/mypy-strict-2a6db2.svg"></a>
+  <a href="https://hub.docker.com/r/josecuev/pysifen"><img alt="Docker" src="https://img.shields.io/docker/v/josecuev/pysifen?label=docker&logo=docker"></a>
 </p>
 
 ---
 
-Librería para emitir documentos tributarios electrónicos contra el **Sistema
-Integrado de Facturación Electrónica Nacional** de la Dirección Nacional de
-Ingresos Tributarios: armado del XML, Código de Control, firma XMLDSig, código
-QR y comunicación con los web services.
+Librería para **leer, verificar y emitir** documentos tributarios electrónicos
+contra el **Sistema Integrado de Facturación Electrónica Nacional** de la
+Dirección Nacional de Ingresos Tributarios: armado del XML, Código de Control,
+firma XMLDSig, código QR y comunicación con los web services.
+
+Verificar una factura recibida **no requiere certificado propio ni estar
+habilitado como facturador**: el documento trae adentro el certificado de quien
+lo firmó, y la cadena se valida contra la Lista de Confianza oficial del
+Ministerio de Industria y Comercio.
 
 La implementación sigue el **Manual Técnico v150** con las **Notas Técnicas 001
 a 027** aplicadas de forma acumulativa. Cada módulo cita en su docstring el
@@ -31,7 +37,26 @@ apartado del manual que implementa.
 pip install pysifen
 ```
 
+O sin instalar nada, el servidor MCP en Docker:
+
+```bash
+docker run --rm -p 127.0.0.1:8000:8000 josecuev/pysifen
+```
+
 ## Ejemplo
+
+Verificar una factura que llegó por correo:
+
+```python
+from pysifen.lectura import verificar_documento
+
+resultado = verificar_documento(open("factura.xml", "rb").read())
+resultado.confiable   # True significa auténtico, no "parece bien"
+resultado.prestador   # "Documenta SA", según la Lista de Confianza del MIC
+print(resultado.informe())
+```
+
+Y armar el Código de Control de uno propio:
 
 ```python
 from datetime import date
@@ -57,9 +82,10 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 ## Estado
 
 > [!WARNING]
-> Versión 0.2.0. Arma, firma y valida documentos electrónicos, pero
-> **todavía no los transmite al SIFEN**. La API puede cambiar mientras
-> la versión empiece en `0.`. Ver la [hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/).
+> Versión 0.4.0. Lee y verifica documentos recibidos de punta a punta, y arma y
+> firma documentos propios, pero **todavía no los transmite al SIFEN**. La API
+> puede cambiar mientras la versión empiece en `0.`. Ver la
+> [hoja de ruta](https://josecuev.github.io/pysifen/hoja-de-ruta/).
 
 | Componente | Estado |
 |---|---|
@@ -73,11 +99,13 @@ print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
 | Validación contra el esquema oficial de la DNIT | Listo |
 | Lectura y verificación de documentos recibidos | Listo |
 | Servidor MCP sin estado (stdio y HTTP) | Listo |
-| Validación de la cadena de confianza | Pendiente |
+| Cadena de confianza hasta la Raíz del Paraguay | Listo |
+| Imagen de Docker del servidor MCP | Listo |
 | Firma XMLDSig | Listo |
 | Custodia de la clave (F1, F2, F3) y auditoría | Listo |
 | Lectura de certificados y prestadores cualificados | Listo |
-| Cadena de confianza y revocación | En curso |
+| Revocación (CRL/OCSP) | Pendiente |
+| Lectura completa del documento a los modelos | Pendiente |
 | Web services (recepción, lote, consultas, eventos) | Pendiente |
 
 ## Línea de comandos

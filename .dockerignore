@@ -1,0 +1,32 @@
+# Todo lo que no hace falta para armar la rueda. Cuanto menos entra al
+# contexto, mas rapida es la construccion y menos hay que puede filtrarse a
+# una capa por accidente.
+
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+
+dist
+site
+htmlcov
+.coverage
+coverage.xml
+
+docs
+tests
+scripts
+*.md
+!README.md
+
+# Nunca, bajo ninguna circunstancia, dentro de una imagen.
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*

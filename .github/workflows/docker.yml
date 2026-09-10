@@ -1,0 +1,157 @@
+name: Docker
+
+# Construye la imagen, la escanea y —sólo en un tag de versión— la publica.
+#
+# El orden importa: **no se publica nada que no haya pasado el escaneo**. Una
+# imagen es un binario que otros ejecutan; publicar una con una vulnerabilidad
+# que ya tiene parche es trasladarle el problema a quien la usa.
+#
+# El escaneo también corre semanalmente sin que nadie toque el repositorio,
+# porque una imagen publicada hace un mes se vuelve vulnerable sola: el CVE
+# aparece después, en una dependencia del sistema base que nadie modificó.
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+  schedule:
+    # Los lunes a las 06:30 en Asunción (UTC-3), después del resto de la
+    # revisión de seguridad.
+    - cron: "30 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGEN: josecuev/pysifen
+
+jobs:
+  construir-y-escanear:
+    name: Construir y escanear
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Preparar buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir para escanear
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGEN }}:escaneo
+          # --pull para que la base sea la última publicada y no una cacheada
+          # con parches viejos.
+          pull: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy — todo lo que encuentre, al panel de seguridad
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGEN }}:escaneo
+          format: sarif
+          output: trivy.sarif
+          scanners: vuln,secret,misconfig
+        env:
+          TRIVY_SKIP_DB_UPDATE: false
+
+      - name: Publicar los resultados
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-imagen
+
+      - name: Trivy — el que corta, sólo lo que tiene arreglo
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGEN }}:escaneo
+          format: table
+          severity: CRITICAL,HIGH
+          # Sin arreglo publicado no hay nada que hacer salvo esperar al
+          # proveedor. Cortar por eso convertiría la puerta en algo que todo el
+          # mundo aprende a saltear, que es peor que no tenerla.
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Inventario de componentes de la imagen
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGEN }}:escaneo
+          format: cyclonedx-json
+          artifact-name: sbom-imagen.cdx.json
+
+  publicar:
+    name: Publicar en Docker Hub
+    needs: construir-y-escanear
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Preparar QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Preparar buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Entrar a Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Calcular las etiquetas
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGEN }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # latest sólo en una versión definitiva: un tag con guión es una
+            # precandidata, y quien no fija versión no quiere una precandidata.
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Construir y publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # El SBOM y la procedencia viajan con la imagen: quien la baja puede
+          # comprobar de qué commit salió y qué trae adentro sin confiar en la
+          # palabra de nadie.
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+
+      - name: Actualizar la descripción del repositorio
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGEN }}
+          readme-filepath: ./docs/docker.md

@@ -98,6 +98,7 @@ nav:
   - Normativa vigente: normativa-vigente.md
   - Notas para agentes de IA: para-agentes.md
   - Servidor MCP: mcp.md
+  - Imagen de Docker: docker.md
   - Hoja de ruta: hoja-de-ruta.md
   - Seguridad:
       - Custodia del certificado: seguridad/custodia.md
