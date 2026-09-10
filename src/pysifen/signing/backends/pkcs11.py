@@ -136,9 +136,15 @@ class FirmantePkcs11:
                 filtros["label"] = etiqueta_clave
             clave = sesion.get_key(**filtros)
 
-            filtros_cert: dict[str, Any] = {"object_class": ObjectClass.CERTIFICATE}
+            # get_objects() no toma los mismos nombres que get_key(): recibe un
+            # diccionario indexado por Attribute. Con claves de texto el filtro
+            # no se aplica y el dispositivo devuelve el primer objeto que
+            # tenga, que puede no ser el certificado buscado.
+            filtros_cert: dict[pkcs11.Attribute, Any] = {
+                pkcs11.Attribute.CLASS: ObjectClass.CERTIFICATE
+            }
             if etiqueta_clave:
-                filtros_cert["label"] = etiqueta_clave
+                filtros_cert[pkcs11.Attribute.LABEL] = etiqueta_clave
             objeto = next(iter(sesion.get_objects(filtros_cert)))
             certificado = Certificado.desde_der(bytes(objeto[pkcs11.Attribute.VALUE]))
         except Exception as exc:

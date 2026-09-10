@@ -101,13 +101,24 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Exportar el arbol resuelto
+        run: |
+          pipx inject poetry poetry-plugin-export
+          poetry export --without-hashes --with dev,test,docs --all-extras -o requisitos.txt
+
       - name: Generar el SBOM
         # CycloneDX es el formato que piden las auditorias de cadena de
         # suministro. Se genera desde el lock, no desde el entorno instalado,
         # para que el inventario sea reproducible.
+        #
+        # Via el archivo exportado y no con `cyclonedx-py poetry`: ese
+        # subcomando todavia lee el nombre del proyecto de [tool.poetry], y
+        # este manifiesto declara los metadatos en [project], como manda la
+        # PEP 621.
         run: |
           pipx install cyclonedx-bom
-          cyclonedx-py poetry --output-format json --output-file sbom.cdx.json
+          cyclonedx-py requirements requisitos.txt \
+            --output-format json --output-file sbom.cdx.json
 
       - name: Publicar el SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
