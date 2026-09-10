@@ -1,0 +1,109 @@
+<h1 align="center">pysifen</h1>
+
+<p align="center">
+  <em>Facturación electrónica del Paraguay (SIFEN) en Python.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/josecuev/pysifen/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/josecuev/pysifen/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://pypi.org/project/pysifen/"><img alt="PyPI" src="https://img.shields.io/pypi/v/pysifen.svg"></a>
+  <a href="https://pypi.org/project/pysifen/"><img alt="Python" src="https://img.shields.io/pypi/pyversions/pysifen.svg"></a>
+  <a href="https://github.com/josecuev/pysifen/blob/master/LICENSE"><img alt="Licencia" src="https://img.shields.io/pypi/l/pysifen.svg"></a>
+  <a href="https://josecuev.github.io/pysifen/"><img alt="Documentación" src="https://img.shields.io/badge/docs-mkdocs--material-blue.svg"></a>
+  <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
+  <a href="https://mypy-lang.org/"><img alt="mypy" src="https://img.shields.io/badge/mypy-strict-2a6db2.svg"></a>
+</p>
+
+---
+
+Librería para emitir documentos tributarios electrónicos contra el **Sistema
+Integrado de Facturación Electrónica Nacional** de la Dirección Nacional de
+Ingresos Tributarios: armado del XML, Código de Control, firma XMLDSig, código
+QR y comunicación con los web services.
+
+La implementación sigue el **Manual Técnico v150** con las **Notas Técnicas 001
+a 027** aplicadas de forma acumulativa. Cada módulo cita en su docstring el
+apartado del manual que implementa.
+
+## Instalación
+
+```bash
+pip install pysifen
+```
+
+## Ejemplo
+
+```python
+from datetime import date
+
+from pysifen import Cdc, TipoContribuyente, TipoDocumento
+from pysifen.security import generar_codigo_seguridad
+
+cdc = Cdc.crear(
+    tipo_documento=TipoDocumento.FACTURA,
+    ruc_emisor="80012345-6",
+    establecimiento="001",
+    punto_expedicion="001",
+    numero="0000123",
+    tipo_contribuyente=TipoContribuyente.PERSONA_JURIDICA,
+    fecha_emision=date.today(),
+    codigo_seguridad=generar_codigo_seguridad(),
+)
+
+print(cdc.valor)  # 44 dígitos
+print(cdc.formateado)  # en grupos de cuatro, como va impreso en el KuDE
+```
+
+## Estado
+
+> [!WARNING]
+> En desarrollo. Todavía no cubre el ciclo completo de emisión.
+
+| Componente | Estado |
+|---|---|
+| Código de Control (CDC) y dígito verificador | Listo |
+| Código de seguridad `dCodSeg` | Listo |
+| Código QR del KuDE | Listo |
+| Tablas de códigos del Manual Técnico | Parcial |
+| Armado del XML del DE | En curso |
+| Firma XMLDSig | En curso |
+| Prestadores cualificados y validación de certificados | En curso |
+| Web services (recepción, lote, consultas, eventos) | Pendiente |
+
+## Principios
+
+- **La fuente de verdad es el manual oficial.** Nada se implementa de oído.
+  Cuando el manual no dice algo, se documenta la decisión con la cita de lo que
+  sí dice.
+- **La clave privada es sagrada.** Toda firma pasa por un puerto abstracto y la
+  librería no expone ninguna forma de exportar material de clave.
+- **Los prestadores son intercambiables.** El soporte de prestadores
+  cualificados es un punto de extensión declarado por *entry points*: agregar
+  uno nuevo no requiere tocar el núcleo.
+- **Los nombres del SIFEN se respetan.** Los campos se llaman `dCodSeg`,
+  `gCamFuFD`, `iTipEmi` como en el manual, para que buscar un campo en el manual
+  y en el código dé lo mismo.
+
+## Documentación
+
+<https://josecuev.github.io/pysifen/>
+
+- [Normativa vigente](https://josecuev.github.io/pysifen/normativa-vigente/) —
+  qué está en vigor, con fechas y citas de fuentes primarias.
+- [Custodia del certificado](https://josecuev.github.io/pysifen/seguridad/custodia/) —
+  cómo se protege la clave privada y por qué.
+
+## Contribuir
+
+Ver [CONTRIBUTING.md](CONTRIBUTING.md). En resumen: `ruff check .`, `mypy` y
+`pytest` tienen que pasar, y todo cambio de comportamiento cita el apartado del
+Manual Técnico que lo justifica.
+
+## Licencia
+
+[MIT](LICENSE).
+
+## Aviso
+
+Proyecto independiente. No está afiliado ni respaldado por la Dirección Nacional
+de Ingresos Tributarios del Paraguay.
