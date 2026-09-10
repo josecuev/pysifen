@@ -1,15 +1,196 @@
-[tool.poetry]
+[project]
 name = "pysifen"
-version = "0.1.0"
-description = ""
-authors = ["josecuev <jmcuev89@gmail.com>"]
+version = "0.2.0.dev0"
+description = "Librería Python para el Sistema Integrado de Facturación Electrónica Nacional (SIFEN) de Paraguay"
 readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "José Cuevas", email = "jmcuev89@gmail.com" }]
+maintainers = [{ name = "José Cuevas", email = "jmcuev89@gmail.com" }]
+keywords = [
+    "sifen",
+    "paraguay",
+    "facturacion-electronica",
+    "factura-electronica",
+    "dnit",
+    "ekuatia",
+    "xmldsig",
+    "e-invoicing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Spanish",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "cryptography>=43.0",
+    "httpx>=0.27",
+    "lxml>=5.2",
+    "pydantic>=2.8",
+    "segno>=1.6",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.101.0"
+[project.urls]
+Homepage = "https://github.com/josecuev/pysifen"
+Documentation = "https://josecuev.github.io/pysifen/"
+Repository = "https://github.com/josecuev/pysifen"
+Changelog = "https://github.com/josecuev/pysifen/blob/master/CHANGELOG.md"
+Issues = "https://github.com/josecuev/pysifen/issues"
 
+[project.optional-dependencies]
+# Microservicio HTTP opcional. El núcleo no depende de esto.
+api = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+# Firma con clave en token o HSM vía PKCS#11.
+pkcs11 = ["python-pkcs11>=0.7"]
+
+[project.entry-points."pysifen.psc"]
+# Prestadores cualificados de servicios de confianza habilitados por el MIC.
+# Agregar uno nuevo no requiere tocar el núcleo: basta registrar su entry point.
+vit = "pysifen.pki.providers.vit:VitProvider"
+code100 = "pysifen.pki.providers.code100:Code100Provider"
+documenta = "pysifen.pki.providers.documenta:DocumentaProvider"
+identificaciones = "pysifen.pki.providers.identificaciones:IdentificacionesProvider"
+confirma = "pysifen.pki.providers.confirma:ConfirmaProvider"
+itti = "pysifen.pki.providers.itti:IttiProvider"
+sos = "pysifen.pki.providers.sos:SosProvider"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "lxml-stubs>=0.5",
+]
+test = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "freezegun>=1.5",
+    "respx>=0.21",
+]
+docs = [
+    # Pin a la serie 1.x: MkDocs 2.0 elimina el sistema de plugins y no
+    # ofrece camino de migracion, asi que romperia gen-files, literate-nav,
+    # mkdocstrings y el tema Material de una sola vez.
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]>=0.26",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
+]
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "pysifen", from = "src" }]
+
+# --------------------------------------------------------------------------- #
+# Lint y formato
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "N",           # pep8-naming
+    "UP",          # pyupgrade
+    "B",           # bugbear
+    "C4",          # comprehensions
+    "DTZ",         # datetimes sin zona
+    "S",           # bandit
+    "RUF",
+    "D",           # pydocstyle
+    "ANN",         # anotaciones de tipo
+    "PT",          # estilo pytest
+    "SIM",
+    "TID",
+    "ERA",         # código comentado
+]
+ignore = [
+    "D203",   # incompatible con D211
+    "D213",   # incompatible con D212
+    "ANN401", # Any explícito, se permite en fronteras
+    "D107",   # los argumentos se documentan en el docstring de la clase
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los nombres de campo del SIFEN son los del Manual Técnico y no se normalizan.
+"src/pysifen/enums.py" = ["N815"]
+"tests/**" = [
+    "S101",   # assert es el vocabulario de pytest
+    "D100", "D101", "D102", "D103", "D104",  # los tests se nombran, no se documentan
+    "ANN001", "ANN201",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# --------------------------------------------------------------------------- #
+# Tipado
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+warn_return_any = true
+disallow_any_generics = true
+no_implicit_reexport = true
+show_error_codes = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["segno.*", "pkcs11.*"]
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------- #
+# Tests
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--cov=pysifen",
+    "--cov-report=term-missing",
+    "--cov-fail-under=90",
+]
+markers = [
+    "red: requiere acceso de red a los servicios de la DNIT",
+    "certificado: requiere un certificado real del contribuyente",
+    "lento: tarda más de un segundo",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/pysifen"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+    "\\.\\.\\.",
+]
